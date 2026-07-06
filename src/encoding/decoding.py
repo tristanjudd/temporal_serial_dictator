@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 from ..synthetic_data.profiles import ApprovalProfile
 
@@ -66,3 +67,33 @@ def load_profile_jsonl(path: str | Path) -> list[ApprovalProfile] | None:
             return None
 
     return instance
+
+
+def load_decisions_json(path: str | Path) -> list[Any] | None:
+    """Read a JSON-encoded decision sequence from `path` (as written by
+    encoding.save_decisions_json).
+
+    Errors are caught and reported as human-readable messages on stderr
+    rather than raised; None is returned if decoding fails.
+    """
+    try:
+        text = Path(path).read_text()
+    except OSError as e:
+        print(f"Error reading decision sequence from '{path}': {e}.", file=sys.stderr)
+        return None
+
+    try:
+        decisions = json.loads(text)
+    except json.JSONDecodeError as e:
+        print(f"Error decoding decision sequence: not valid JSON ({e}).", file=sys.stderr)
+        return None
+
+    if not isinstance(decisions, list):
+        print(
+            "Error decoding decision sequence: expected a JSON array, got "
+            f"{type(decisions).__name__}.",
+            file=sys.stderr,
+        )
+        return None
+
+    return decisions

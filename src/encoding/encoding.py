@@ -51,3 +51,25 @@ def save_profile_jsonl(instance: Sequence[ApprovalProfile[Any, Any]], path: str 
         Path(path).write_text("".join(line + "\n" for line in lines))
     except OSError as e:
         print(f"Error writing profile to '{path}': {e}.", file=sys.stderr)
+
+
+def save_decisions_json(decisions: Sequence[Any], path: str | Path) -> None:
+    """Encode a decision sequence (one winner per round) as JSON and save
+    it to `path`.
+
+    Errors are caught and reported as human-readable messages on stderr
+    rather than raised.
+    """
+    try:
+        encoded = json.dumps(list(decisions))
+    except TypeError as e:
+        print(
+            f"Error encoding decision sequence: could not convert data to JSON ({e}).",
+            file=sys.stderr,
+        )
+        return
+
+    try:
+        Path(path).write_text(encoded)
+    except OSError as e:
+        print(f"Error writing decision sequence to '{path}': {e}.", file=sys.stderr)
