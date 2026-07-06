@@ -8,8 +8,8 @@ bookkeeping, not data generation.
 
 from __future__ import annotations
 
-from synthetic_data.points import generate_2d_points
-from synthetic_data.profiles import ApprovalProfile, approvalprofile_from_2d_euclidean
+from .points import generate_2d_points
+from .profiles import ApprovalProfile, approvalprofile_from_2d_euclidean
 
 
 def generate_instance(
