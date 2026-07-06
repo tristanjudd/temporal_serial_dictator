@@ -14,6 +14,8 @@ tasks:
   install:
     desc: Install project dependencies (editable, with dev extras)
     deps: [venv]
+    sources:
+      - pyproject.toml
     cmds:
       - "{{.VENV}}/bin/pip install -e '.[dev]'"
 
@@ -53,3 +55,12 @@ tasks:
     deps: [install]
     cmds:
       - "{{.VENV}}/bin/pre-commit install"
+
+  experiment:
+    desc: "Run synthetic serial dictator experiments (usage: task experiment T=20 NUM_EXPERIMENTS=100)"
+    deps: [install]
+    vars:
+      T: '{{.T | default "20"}}'
+      NUM_EXPERIMENTS: '{{.NUM_EXPERIMENTS | default "1"}}'
+    cmds:
+      - "{{.VENV}}/bin/python -m src.synthetic_data.run_synthetic_experiment {{.T}} --num-experiments {{.NUM_EXPERIMENTS}}"

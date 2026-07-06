@@ -233,3 +233,6 @@ Thumbs.db
 
 # generated experiment output
 /src/experiments/
+
+# Task checksum cache
+/.task/
