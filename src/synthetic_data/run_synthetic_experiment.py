@@ -2,7 +2,7 @@
 
 Generates temporal approval voting instances of T rounds, runs the serial
 dictator rule on each, and saves the approval profile and decision sequence
-to a timestamped directory under src/experiments/.
+to a timestamped directory under experiments/.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from ..encoding.encoding import save_decisions_json, save_profile_jsonl
 from ..voting_rules.serial_dictator import SerialDictator
 from .instances import generate_instance
 
-EXPERIMENTS_DIR = Path(__file__).resolve().parent.parent / "experiments"
+EXPERIMENTS_DIR = Path(__file__).resolve().parent.parent.parent / "experiments"
 
 
 def run_synthetic_experiment(
@@ -34,7 +34,7 @@ def run_synthetic_experiment(
 ) -> list[Path | None]:
     """Run num_experiments independent synthetic serial dictator
     experiments, each with a freshly generated instance of T rounds,
-    saved to its own timestamped directory under src/experiments/.
+    saved to its own timestamped directory under experiments/.
 
     Displays a progress bar for the experiments as they run, and prints a
     summary with the total elapsed time once all of them are done.
@@ -80,7 +80,7 @@ def _run_single_experiment(
 ) -> Path | None:
     """Generate a synthetic instance of T rounds, run the serial dictator
     rule on it, and save the approval profile and decision sequence to a
-    timestamped directory under src/experiments/. Returns that directory.
+    timestamped directory under experiments/. Returns that directory.
 
     Errors are caught and reported as human-readable messages on stderr
     rather than raised; None is returned if the experiment could not be

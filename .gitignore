@@ -232,7 +232,7 @@ Thumbs.db
 /lackner_perpetual_voting
 
 # generated experiment output
-/src/experiments/
+/experiments/
 
 # Task checksum cache
 /.task/

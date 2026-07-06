@@ -64,3 +64,8 @@ tasks:
       NUM_EXPERIMENTS: '{{.NUM_EXPERIMENTS | default "1"}}'
     cmds:
       - "{{.VENV}}/bin/python -m src.synthetic_data.run_synthetic_experiment {{.T}} --num-experiments {{.NUM_EXPERIMENTS}}"
+
+  clean-experiments:
+    desc: Delete all generated experiment output
+    cmds:
+      - rm -rf experiments
