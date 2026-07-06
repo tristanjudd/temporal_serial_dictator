@@ -227,3 +227,6 @@ Thumbs.db
 *~
 *.bak
 *.tmp
+
+# Martin Lackner's codebase
+/lackner_perpetual_voting
