@@ -8,6 +8,7 @@ to a timestamped directory under src/experiments/.
 from __future__ import annotations
 
 import argparse
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -26,29 +27,52 @@ def run_synthetic_experiment(
     voter_point_mode: str = "eucl2",
     cand_point_mode: str = "uniform_square",
     approval_threshold: float = 1.5,
-) -> Path:
+) -> Path | None:
     """Generate a synthetic instance of T rounds, run the serial dictator
     rule on it, and save the approval profile and decision sequence to a
-    timestamped directory under src/experiments/. Returns that directory."""
-    instance = generate_instance(
-        n=n,
-        m=m,
-        T=T,
-        sigma=sigma,
-        voter_point_mode=voter_point_mode,
-        cand_point_mode=cand_point_mode,
-        approval_threshold=approval_threshold,
-    )
+    timestamped directory under src/experiments/. Returns that directory.
 
-    serial_dictator: SerialDictator[int, int] = SerialDictator(voters=list(range(n)))
-    decisions = serial_dictator(instance)
+    Errors are caught and reported as human-readable messages on stderr
+    rather than raised; None is returned if the experiment could not be
+    run or saved.
+    """
+    try:
+        instance = generate_instance(
+            n=n,
+            m=m,
+            T=T,
+            sigma=sigma,
+            voter_point_mode=voter_point_mode,
+            cand_point_mode=cand_point_mode,
+            approval_threshold=approval_threshold,
+        )
+    except ValueError as e:
+        print(f"Error generating synthetic instance: {e}", file=sys.stderr)
+        return None
+
+    try:
+        serial_dictator: SerialDictator[int, int] = SerialDictator(voters=list(range(n)))
+        decisions = serial_dictator(instance)
+    except (ValueError, ZeroDivisionError) as e:
+        print(f"Error running serial dictator: {e}", file=sys.stderr)
+        return None
 
     timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
     output_dir = EXPERIMENTS_DIR / f"T{T}-n{n}-{timestamp}"
-    output_dir.mkdir(parents=True)
+    try:
+        output_dir.mkdir(parents=True)
+    except OSError as e:
+        print(f"Error creating experiment directory '{output_dir}': {e}", file=sys.stderr)
+        return None
 
-    save_profile_jsonl(instance, output_dir / "approvals.jsonl")
-    save_decisions_json(decisions, output_dir / "decisions.json")
+    approvals_path = output_dir / "approvals.jsonl"
+    decisions_path = output_dir / "decisions.json"
+    save_profile_jsonl(instance, approvals_path)
+    save_decisions_json(decisions, decisions_path)
+
+    if not approvals_path.exists() or not decisions_path.exists():
+        print(f"Error: experiment data was not fully saved to {output_dir}", file=sys.stderr)
+        return None
 
     print(f"Saved experiment (T={T}, n={n}) to {output_dir}")
     return output_dir
