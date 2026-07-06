@@ -1,7 +1,7 @@
-"""Run a single synthetic serial-dictator experiment and save its results.
+"""Run synthetic serial-dictator experiments and save their results.
 
-Generates a temporal approval voting instance of T rounds, runs the serial
-dictator rule on it, and saves the approval profile and decision sequence
+Generates temporal approval voting instances of T rounds, runs the serial
+dictator rule on each, and saves the approval profile and decision sequence
 to a timestamped directory under src/experiments/.
 """
 
@@ -27,6 +27,43 @@ def run_synthetic_experiment(
     voter_point_mode: str = "eucl2",
     cand_point_mode: str = "uniform_square",
     approval_threshold: float = 1.5,
+    num_experiments: int = 1,
+) -> list[Path | None]:
+    """Run num_experiments independent synthetic serial dictator
+    experiments, each with a freshly generated instance of T rounds,
+    saved to its own timestamped directory under src/experiments/.
+
+    Returns the list of output directories, one per experiment, in order;
+    an entry is None if that particular experiment failed.
+    """
+    results = []
+    for _ in range(num_experiments):
+        results.append(
+            _run_single_experiment(
+                T=T,
+                n=n,
+                m=m,
+                sigma=sigma,
+                voter_point_mode=voter_point_mode,
+                cand_point_mode=cand_point_mode,
+                approval_threshold=approval_threshold,
+            )
+        )
+
+    num_succeeded = sum(result is not None for result in results)
+    print(f"Ran {num_experiments} experiment(s): {num_succeeded} succeeded, "
+          f"{num_experiments - num_succeeded} failed.")
+    return results
+
+
+def _run_single_experiment(
+    T: int,
+    n: int,
+    m: int,
+    sigma: float,
+    voter_point_mode: str,
+    cand_point_mode: str,
+    approval_threshold: float,
 ) -> Path | None:
     """Generate a synthetic instance of T rounds, run the serial dictator
     rule on it, and save the approval profile and decision sequence to a
@@ -57,7 +94,7 @@ def run_synthetic_experiment(
         print(f"Error running serial dictator: {e}", file=sys.stderr)
         return None
 
-    timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+    timestamp = datetime.now().strftime("%Y%m%dT%H%M%S%f")
     output_dir = EXPERIMENTS_DIR / f"T{T}-n{n}-{timestamp}"
     try:
         output_dir.mkdir(parents=True)
@@ -79,7 +116,7 @@ def run_synthetic_experiment(
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run a synthetic serial dictator experiment.")
+    parser = argparse.ArgumentParser(description="Run synthetic serial dictator experiments.")
     parser.add_argument("T", type=int, help="number of rounds")
     parser.add_argument("--n", type=int, default=20, help="number of voters")
     parser.add_argument("--m", type=int, default=5, help="number of alternatives per round")
@@ -87,6 +124,9 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--voter-point-mode", default="eucl2")
     parser.add_argument("--cand-point-mode", default="uniform_square")
     parser.add_argument("--approval-threshold", type=float, default=1.5)
+    parser.add_argument(
+        "--num-experiments", type=int, default=1, help="number of experiments to run"
+    )
     return parser.parse_args()
 
 
@@ -100,4 +140,5 @@ if __name__ == "__main__":
         voter_point_mode=args.voter_point_mode,
         cand_point_mode=args.cand_point_mode,
         approval_threshold=args.approval_threshold,
+        num_experiments=args.num_experiments,
     )
