@@ -6,7 +6,7 @@ requires-python = ">=3.11"
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["ruff"]
+dev = ["ruff", "mypy"]
 
 [build-system]
 requires = ["setuptools>=68"]
