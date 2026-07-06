@@ -1,0 +1,23 @@
+repos:
+  - repo: local
+    hooks:
+      - id: lint
+        name: lint (ruff)
+        entry: task lint
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: typecheck
+        name: typecheck (mypy)
+        entry: task typecheck
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: test
+        name: test (pytest)
+        entry: task test
+        language: system
+        types: [python]
+        pass_filenames: false

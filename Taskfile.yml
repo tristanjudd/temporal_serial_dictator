@@ -47,3 +47,9 @@ tasks:
       - task: lint
       - task: typecheck
       - task: test
+
+  hooks:
+    desc: Install the git pre-commit hooks
+    deps: [install]
+    cmds:
+      - "{{.VENV}}/bin/pre-commit install"
