@@ -21,9 +21,11 @@ class ApprovalProfile(Protocol):
 def print_profile(
     instance: Sequence[ApprovalProfile],
     decisions: Sequence[Any] | None = None,
+    permutation: Sequence[Any] | None = None,
 ) -> None:
     """Print a table of voters (rows) and their approval sets per round
-    (columns), followed by the decision sequence, if given.
+    (columns), followed by the decision sequence and voter permutation,
+    if given.
 
     Round sequences too wide for the terminal are abbreviated to as many
     of the first and last rounds as fit, with a gap marker in between.
@@ -31,6 +33,9 @@ def print_profile(
     console = Console()
     max_rounds = max(1, (console.size.width - VOTER_COLUMN_WIDTH) // COLUMN_WIDTH)
     rounds = _rounds_to_show(len(instance), max_rounds)
+
+    if permutation is not None:
+        console.print("Permutation: " + " > ".join(str(v) for v in permutation))
 
     table = Table(title="Approval profile")
     table.add_column("voter", justify="right", style="bold")
