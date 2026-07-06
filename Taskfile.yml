@@ -1,0 +1,30 @@
+version: '3'
+
+vars:
+  VENV: .venv
+
+tasks:
+  venv:
+    desc: Create the virtual environment
+    status:
+      - test -d {{.VENV}}
+    cmds:
+      - python3 -m venv {{.VENV}}
+
+  install:
+    desc: Install project dependencies (editable, with dev extras)
+    deps: [venv]
+    cmds:
+      - "{{.VENV}}/bin/pip install -e '.[dev]'"
+
+  lint:
+    desc: Run ruff lint checks
+    deps: [install]
+    cmds:
+      - "{{.VENV}}/bin/ruff check ."
+
+  format:
+    desc: Format code with ruff
+    deps: [install]
+    cmds:
+      - "{{.VENV}}/bin/ruff format ."
