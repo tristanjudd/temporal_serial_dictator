@@ -12,6 +12,9 @@ dev = ["ruff", "mypy", "pytest"]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
+[tool.mypy]
+exclude = ["^lackner_perpetual_voting/"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
