@@ -230,3 +230,6 @@ Thumbs.db
 
 # Martin Lackner's codebase
 /lackner_perpetual_voting
+
+# generated experiment output
+/src/experiments/
