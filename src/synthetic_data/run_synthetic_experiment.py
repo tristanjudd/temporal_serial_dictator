@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
+
+from rich.progress import track
 
 from ..encoding.encoding import save_decisions_json, save_profile_jsonl
 from ..voting_rules.serial_dictator import SerialDictator
@@ -33,11 +36,16 @@ def run_synthetic_experiment(
     experiments, each with a freshly generated instance of T rounds,
     saved to its own timestamped directory under src/experiments/.
 
+    Displays a progress bar for the experiments as they run, and prints a
+    summary with the total elapsed time once all of them are done.
+
     Returns the list of output directories, one per experiment, in order;
     an entry is None if that particular experiment failed.
     """
+    start_time = time.perf_counter()
+
     results = []
-    for _ in range(num_experiments):
+    for _ in track(range(num_experiments), description="Running experiments..."):
         results.append(
             _run_single_experiment(
                 T=T,
@@ -47,12 +55,16 @@ def run_synthetic_experiment(
                 voter_point_mode=voter_point_mode,
                 cand_point_mode=cand_point_mode,
                 approval_threshold=approval_threshold,
+                announce=False,
             )
         )
 
+    elapsed = time.perf_counter() - start_time
     num_succeeded = sum(result is not None for result in results)
-    print(f"Ran {num_experiments} experiment(s): {num_succeeded} succeeded, "
-          f"{num_experiments - num_succeeded} failed.")
+    print(
+        f"Completed {num_experiments} experiment(s) in {elapsed:.2f}s: "
+        f"{num_succeeded} succeeded, {num_experiments - num_succeeded} failed."
+    )
     return results
 
 
@@ -64,6 +76,7 @@ def _run_single_experiment(
     voter_point_mode: str,
     cand_point_mode: str,
     approval_threshold: float,
+    announce: bool = True,
 ) -> Path | None:
     """Generate a synthetic instance of T rounds, run the serial dictator
     rule on it, and save the approval profile and decision sequence to a
@@ -111,7 +124,8 @@ def _run_single_experiment(
         print(f"Error: experiment data was not fully saved to {output_dir}", file=sys.stderr)
         return None
 
-    print(f"Saved experiment (T={T}, n={n}) to {output_dir}")
+    if announce:
+        print(f"Saved experiment (T={T}, n={n}) to {output_dir}")
     return output_dir
 
 
