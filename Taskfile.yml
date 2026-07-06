@@ -28,3 +28,22 @@ tasks:
     deps: [install]
     cmds:
       - "{{.VENV}}/bin/ruff format ."
+
+  typecheck:
+    desc: Run mypy type checks
+    deps: [install]
+    cmds:
+      - "{{.VENV}}/bin/mypy ."
+
+  test:
+    desc: Run pytest tests
+    deps: [install]
+    cmds:
+      - "{{.VENV}}/bin/pytest"
+
+  check:
+    desc: Run lint, typecheck, and tests
+    cmds:
+      - task: lint
+      - task: typecheck
+      - task: test
