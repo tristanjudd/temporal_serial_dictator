@@ -1,4 +1,4 @@
-from src.synthetic_data.profiles import ApprovalProfile
+from src.synthetic_data_tools.profiles import ApprovalProfile
 from src.verification.verify_pjr import find_pjr_violations
 
 

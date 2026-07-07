@@ -65,7 +65,13 @@ tasks:
       M: '{{.M | default "5"}}'
       NUM_EXPERIMENTS: '{{.NUM_EXPERIMENTS | default "1"}}'
     cmds:
-      - "{{.VENV}}/bin/python -m src.synthetic_data.run_synthetic_experiment {{.T}} --n {{.N}} --m {{.M}} --num-experiments {{.NUM_EXPERIMENTS}}"
+      - "{{.VENV}}/bin/python -m src.synthetic_data_tools.run_synthetic_experiment {{.T}} --n {{.N}} --m {{.M}} --num-experiments {{.NUM_EXPERIMENTS}}"
+
+  natural-experiment:
+    desc: "Run a serial dictator experiment on real data (usage: task natural-experiment DIR=real_data/eurovision_song_contest_tsoi)"
+    deps: [install]
+    cmds:
+      - "{{.VENV}}/bin/python -m src.real_data_tools.run_natural_experiment {{.DIR}}"
 
   clean-experiments:
     desc: Delete all generated experiment output

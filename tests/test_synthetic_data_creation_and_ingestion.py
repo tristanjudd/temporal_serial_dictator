@@ -1,4 +1,4 @@
-from src.synthetic_data.instances import generate_instance
+from src.synthetic_data_tools.instances import generate_instance
 from src.voting_rules.serial_dictator import SerialDictator
 
 

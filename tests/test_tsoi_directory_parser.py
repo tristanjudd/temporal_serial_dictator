@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from src.data_parsing.tsoi_parser import parse_tsoi_directory
-from src.synthetic_data.profiles import ApprovalProfile
+from src.real_data_tools.tsoi_parser import parse_tsoi_directory
+from src.synthetic_data_tools.profiles import ApprovalProfile
 
 
 def test_tsoi_directory_parser():

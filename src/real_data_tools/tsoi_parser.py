@@ -2,12 +2,12 @@ import os
 import sys
 from pathlib import Path
 
-from ..synthetic_data.profiles import ApprovalProfile
+from ..synthetic_data_tools.profiles import ApprovalProfile
 
 
 def parse_tsoi_directory(path: Path | str) -> list[ApprovalProfile]:
     try:
-        filenames = os.listdir(path)
+        filenames = sorted(os.listdir(path))
     except Exception as e:
         print(f"Error reading directory '{path}': {e}", file=sys.stderr)
         return []
@@ -29,7 +29,36 @@ def parse_tsoi_directory(path: Path | str) -> list[ApprovalProfile]:
     if any(profile.has_empty_sets() for profile in approval_sequence):
         raise Exception(f"Found an approval profile with empty approval sets in '{path}'")
 
-    return approval_sequence
+    return _fill_missing_voters(approval_sequence)
+
+
+def _fill_missing_voters(approval_sequence: list[ApprovalProfile]) -> list[ApprovalProfile]:
+    """Reconcile voters across rounds.
+
+    Not every voter necessarily appears in every round (e.g. a country
+    that didn't participate that year). Uses the union of voters seen
+    across all rounds; a voter absent from a round is treated as
+    indifferent between that round's candidates, i.e. as approving all
+    of them, rather than none.
+    """
+    all_voters = []
+    seen_voters = set()
+    for profile in approval_sequence:
+        for voter in profile.voters:
+            if voter not in seen_voters:
+                seen_voters.add(voter)
+                all_voters.append(voter)
+
+    return [
+        ApprovalProfile(
+            voters=all_voters,
+            cands=profile.cands,
+            approval_sets={
+                voter: profile.approval_sets.get(voter, profile.cands) for voter in all_voters
+            },
+        )
+        for profile in approval_sequence
+    ]
 
 def parse_tsoi(path: Path | str) -> ApprovalProfile:
     try:
@@ -56,6 +85,7 @@ def parse_tsoi(path: Path | str) -> ApprovalProfile:
         candidate_map = {candidate: i for i, candidate in enumerate(candidates)}
 
         approval_lines = lines[num_candidates + 2:]
+        voters = [line[:line.find(':')] for line in approval_lines]
         stripped_lines = [line[line.find(':') + 1:] for line in approval_lines]
         token_rows = [line.split(',') for line in stripped_lines]
         token_rows = [row[1:] for row in token_rows]  # drop leading per-voter metadata field
@@ -76,9 +106,9 @@ def parse_tsoi(path: Path | str) -> ApprovalProfile:
         )
 
     approval_profile = ApprovalProfile(
-        voters=list(range(num_voters)),
+        voters=voters,
         cands=list(range(len(candidates))),
-        approval_sets={i: approval_set for i, approval_set in enumerate(approvals)}
+        approval_sets={voters[i]: approval_set for i, approval_set in enumerate(approvals)}
     )
 
     return approval_profile

@@ -18,7 +18,7 @@ from rich.console import Console
 from rich.progress import track
 
 from ..encoding.decoding import load_decisions_json, load_profile_jsonl
-from ..synthetic_data.profiles import ApprovalProfile
+from ..synthetic_data_tools.profiles import ApprovalProfile
 
 console = Console()
 

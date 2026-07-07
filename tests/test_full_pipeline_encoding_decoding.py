@@ -2,7 +2,7 @@ from pathlib import Path
 
 from src.encoding.decoding import load_decisions_json, load_profile_jsonl
 from src.encoding.encoding import save_decisions_json, save_profile_jsonl
-from src.synthetic_data.instances import generate_instance
+from src.synthetic_data_tools.instances import generate_instance
 from src.voting_rules.serial_dictator import SerialDictator
 
 from .test_encoding_decoding_roundtrip import assert_profiles_equal

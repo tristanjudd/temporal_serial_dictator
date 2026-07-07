@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from ..synthetic_data.profiles import ApprovalProfile
+from ..synthetic_data_tools.profiles import ApprovalProfile
 
 
 def load_profile_jsonl(path: str | Path) -> list[ApprovalProfile] | None:
