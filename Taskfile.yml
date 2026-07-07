@@ -69,3 +69,13 @@ tasks:
     desc: Delete all generated experiment output
     cmds:
       - rm -rf experiments/*
+
+  verify-pjr:
+    desc: "Verify PJR for a saved experiment (usage: task verify-pjr DIR=T20-n20-..., defaults to the most recent experiment)"
+    deps: [install]
+    vars:
+      DEFAULT_DIR:
+        sh: ls -t experiments | head -1
+      DIR: '{{.DIR | default .DEFAULT_DIR}}'
+    cmds:
+      - "{{.VENV}}/bin/python -m src.verification.verify_pjr experiments/{{.DIR}}"

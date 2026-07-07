@@ -99,6 +99,17 @@ def verify_run(run_dir: Path) -> dict[str, Any] | None:
         return None
 
     worst = max(violations, key=lambda v: v["bound"] - v["satisfaction"], default=None)
+
+    if worst is None:
+        console.print(f"{run_dir.name}: [bold green]PJR satisfied[/bold green]")
+    else:
+        gap = worst["bound"] - worst["satisfaction"]
+        console.print(
+            f"{run_dir.name}: [bold red]PJR violated[/bold red] "
+            f"({len(violations)} violation(s), worst: group {worst['voters']} "
+            f"bound={worst['bound']} satisfaction={worst['satisfaction']} gap={gap})"
+        )
+
     return {"num_violations": len(violations), "worst": worst}
 
 
