@@ -57,13 +57,15 @@ tasks:
       - "{{.VENV}}/bin/pre-commit install"
 
   experiment:
-    desc: "Run synthetic serial dictator experiments (usage: task experiment T=20 NUM_EXPERIMENTS=100)"
+    desc: "Run synthetic serial dictator experiments (usage: task experiment T=20 N=20 M=5 NUM_EXPERIMENTS=100)"
     deps: [install]
     vars:
       T: '{{.T | default "20"}}'
+      N: '{{.N | default "20"}}'
+      M: '{{.M | default "5"}}'
       NUM_EXPERIMENTS: '{{.NUM_EXPERIMENTS | default "1"}}'
     cmds:
-      - "{{.VENV}}/bin/python -m src.synthetic_data.run_synthetic_experiment {{.T}} --num-experiments {{.NUM_EXPERIMENTS}}"
+      - "{{.VENV}}/bin/python -m src.synthetic_data.run_synthetic_experiment {{.T}} --n {{.N}} --m {{.M}} --num-experiments {{.NUM_EXPERIMENTS}}"
 
   clean-experiments:
     desc: Delete all generated experiment output
