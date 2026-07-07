@@ -61,6 +61,12 @@ def parse_tsoi(path: Path | str) -> ApprovalProfile:
     except Exception as e:
         print(f"Error parsing approvals fomr file '{path}': {e}", file=sys.stderr)
 
+    if len(approvals) != num_voters:
+        raise Exception(
+            f"Expected {num_voters} voter approvals but got {len(approvals)} "
+            f"in file '{path}'"
+        )
+
     approval_profile = ApprovalProfile(
         voters=list(range(num_voters)),
         cands=list(range(len(candidates))),
