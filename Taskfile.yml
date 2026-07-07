@@ -68,4 +68,4 @@ tasks:
   clean-experiments:
     desc: Delete all generated experiment output
     cmds:
-      - rm -rf experiments
+      - rm -rf experiments/*

@@ -2,7 +2,8 @@
 
 Generates temporal approval voting instances of T rounds, runs the serial
 dictator rule on each, and saves the approval profile and decision sequence
-to a timestamped directory under experiments/.
+under experiments/<EXPERIMENT>/<RUN>/, where <EXPERIMENT> identifies the
+whole batch and <RUN> is one individual run within it.
 """
 
 from __future__ import annotations
@@ -33,19 +34,25 @@ def run_synthetic_experiment(
     num_experiments: int = 1,
 ) -> list[Path | None]:
     """Run num_experiments independent synthetic serial dictator
-    experiments, each with a freshly generated instance of T rounds,
-    saved to its own timestamped directory under experiments/.
+    experiments, each with a freshly generated instance of T rounds.
+
+    Creates one experiment directory under experiments/, and within it one
+    run_<i>/ subdirectory per experiment, each holding that run's approval
+    profile and decision sequence.
 
     Displays a progress bar for the experiments as they run, and prints a
     summary with the total elapsed time once all of them are done.
 
-    Returns the list of output directories, one per experiment, in order;
-    an entry is None if that particular experiment failed.
+    Returns the list of run directories, one per experiment, in order; an
+    entry is None if that particular experiment failed.
     """
+    timestamp = datetime.now().strftime("%Y%m%dT%H%M%S%f")
+    experiment_dir = EXPERIMENTS_DIR / f"T{T}-n{n}-{timestamp}"
+
     start_time = time.perf_counter()
 
     results = []
-    for _ in track(range(num_experiments), description="Running experiments..."):
+    for i in track(range(num_experiments), description="Running experiments..."):
         results.append(
             _run_single_experiment(
                 T=T,
@@ -55,6 +62,7 @@ def run_synthetic_experiment(
                 voter_point_mode=voter_point_mode,
                 cand_point_mode=cand_point_mode,
                 approval_threshold=approval_threshold,
+                run_dir=experiment_dir / f"run_{i}",
                 announce=False,
             )
         )
@@ -76,11 +84,12 @@ def _run_single_experiment(
     voter_point_mode: str,
     cand_point_mode: str,
     approval_threshold: float,
+    run_dir: Path,
     announce: bool = True,
 ) -> Path | None:
     """Generate a synthetic instance of T rounds, run the serial dictator
-    rule on it, and save the approval profile and decision sequence to a
-    timestamped directory under experiments/. Returns that directory.
+    rule on it, and save the approval profile and decision sequence to
+    run_dir. Returns run_dir.
 
     Errors are caught and reported as human-readable messages on stderr
     rather than raised; None is returned if the experiment could not be
@@ -107,26 +116,24 @@ def _run_single_experiment(
         print(f"Error running serial dictator: {e}", file=sys.stderr)
         return None
 
-    timestamp = datetime.now().strftime("%Y%m%dT%H%M%S%f")
-    output_dir = EXPERIMENTS_DIR / f"T{T}-n{n}-{timestamp}"
     try:
-        output_dir.mkdir(parents=True)
+        run_dir.mkdir(parents=True)
     except OSError as e:
-        print(f"Error creating experiment directory '{output_dir}': {e}", file=sys.stderr)
+        print(f"Error creating run directory '{run_dir}': {e}", file=sys.stderr)
         return None
 
-    approvals_path = output_dir / "approvals.jsonl"
-    decisions_path = output_dir / "decisions.json"
+    approvals_path = run_dir / "approvals.jsonl"
+    decisions_path = run_dir / "decisions.json"
     save_profile_jsonl(instance, approvals_path)
     save_decisions_json(decisions, decisions_path)
 
     if not approvals_path.exists() or not decisions_path.exists():
-        print(f"Error: experiment data was not fully saved to {output_dir}", file=sys.stderr)
+        print(f"Error: experiment data was not fully saved to {run_dir}", file=sys.stderr)
         return None
 
     if announce:
-        print(f"Saved experiment (T={T}, n={n}) to {output_dir}")
-    return output_dir
+        print(f"Saved experiment (T={T}, n={n}) to {run_dir}")
+    return run_dir
 
 
 def _parse_args() -> argparse.Namespace:
