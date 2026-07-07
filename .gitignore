@@ -228,8 +228,9 @@ Thumbs.db
 *.bak
 *.tmp
 
-# Martin Lackner's codebase
+# Martin Lackner's codebase and data
 /lackner_perpetual_voting
+/real_data
 
 # generated experiment output
 /experiments/
