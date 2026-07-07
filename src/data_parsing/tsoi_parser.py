@@ -1,0 +1,70 @@
+import os
+import sys
+from pathlib import Path
+
+from ..synthetic_data.profiles import ApprovalProfile
+
+
+def parse_tsoi_directory(path: Path | str) -> list[ApprovalProfile]:
+    try:
+        filenames = os.listdir(path)
+    except Exception as e:
+        print(f"Error reading directory '{path}': {e}", file=sys.stderr)
+        return []
+
+    approval_sequence = []
+
+    for filename in filenames:
+        file_path = os.path.join(path, filename)
+        try:
+            approval_sequence.append(parse_tsoi(file_path))
+        except Exception as e:
+            print(f"Error parsing file '{file_path}': {e}", file=sys.stderr)
+
+    return approval_sequence
+
+def parse_tsoi(path: Path | str) -> ApprovalProfile:
+    try:
+        with open(path) as file:
+            lines = file.readlines()
+    except Exception as e:
+        print(f"Error reading file '{path}': {e}", file=sys.stderr)
+
+    try:
+        num_candidates = int(lines[0].split(',')[0])
+    except Exception as e:
+        print(f"Error parsing number of candidates from file '{path}': {e}", file=sys.stderr)
+
+    try:
+        num_voters = int(lines[num_candidates + 1].split(',')[0])
+    except Exception as e:
+        print(f"Error parsing number of voters from file '{path}': {e}", file=sys.stderr)
+
+    try:
+        candidate_lines = lines[1:num_candidates + 1]
+        candidate_id_strs = [line.split(',')[0] for line in candidate_lines]
+        candidates = [int(candidate_id) for candidate_id in candidate_id_strs]
+        candidates.sort()
+        candidate_map = {candidate: i for i, candidate in enumerate(candidates)}
+
+        approval_lines = lines[num_candidates + 2:]
+        stripped_lines = [line[line.find(':') + 1:] for line in approval_lines]
+        token_rows = [line.split(',') for line in stripped_lines]
+        token_rows = [row[1:] for row in token_rows]  # drop leading per-voter metadata field
+        token_rows = [
+            [token[:token.find('[')] if '[' in token else token for token in row]
+            for row in token_rows
+        ]
+        candidate_id_rows = [[int(token) for token in row] for row in token_rows]
+        approvals = [[candidate_map[cid] for cid in row] for row in candidate_id_rows]
+
+    except Exception as e:
+        print(f"Error parsing approvals fomr file '{path}': {e}", file=sys.stderr)
+
+    approval_profile = ApprovalProfile(
+        voters=list(range(num_voters)),
+        cands=list(range(len(candidates))),
+        approval_sets={i: approval_set for i, approval_set in enumerate(approvals)}
+    )
+
+    return approval_profile
