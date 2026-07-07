@@ -21,6 +21,14 @@ def parse_tsoi_directory(path: Path | str) -> list[ApprovalProfile]:
         except Exception as e:
             print(f"Error parsing file '{file_path}': {e}", file=sys.stderr)
 
+    if len(approval_sequence) != len(filenames):
+        raise Exception(
+            f"Expected {len(filenames)} approval profiles but got "
+            f"{len(approval_sequence)} in directory '{path}'"
+        )
+    if any(profile.has_empty_sets() for profile in approval_sequence):
+        raise Exception(f"Found an approval profile with empty approval sets in '{path}'")
+
     return approval_sequence
 
 def parse_tsoi(path: Path | str) -> ApprovalProfile:
