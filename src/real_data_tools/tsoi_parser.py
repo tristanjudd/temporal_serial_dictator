@@ -82,7 +82,6 @@ def parse_tsoi(path: Path | str) -> ApprovalProfile:
         candidate_id_strs = [line.split(',')[0] for line in candidate_lines]
         candidates = [int(candidate_id) for candidate_id in candidate_id_strs]
         candidates.sort()
-        candidate_map = {candidate: i for i, candidate in enumerate(candidates)}
 
         approval_lines = lines[num_candidates + 2:]
         voters = [line[:line.find(':')] for line in approval_lines]
@@ -93,8 +92,7 @@ def parse_tsoi(path: Path | str) -> ApprovalProfile:
             [token[:token.find('[')] if '[' in token else token for token in row]
             for row in token_rows
         ]
-        candidate_id_rows = [[int(token) for token in row] for row in token_rows]
-        approvals = [[candidate_map[cid] for cid in row] for row in candidate_id_rows]
+        approvals = [[int(token) for token in row] for row in token_rows]
 
     except Exception as e:
         print(f"Error parsing approvals fomr file '{path}': {e}", file=sys.stderr)
@@ -107,7 +105,7 @@ def parse_tsoi(path: Path | str) -> ApprovalProfile:
 
     approval_profile = ApprovalProfile(
         voters=voters,
-        cands=list(range(len(candidates))),
+        cands=candidates,
         approval_sets={voters[i]: approval_set for i, approval_set in enumerate(approvals)}
     )
 

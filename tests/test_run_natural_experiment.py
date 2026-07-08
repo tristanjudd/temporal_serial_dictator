@@ -43,12 +43,16 @@ def test_parse_tsoi_directory_backfills_missing_voter_with_all_candidates(tmp_pa
     assert list(round_1.voters) == ["alice", "bob"]
     assert list(round_2.voters) == ["alice", "bob"]
 
-    assert round_1.approval_sets["alice"] == [0, 1]
-    assert round_1.approval_sets["bob"] == [1, 2]
+    # candidate IDs are the real IDs from the file, not remapped indices.
+    assert round_1.cands == [101, 102, 103]
+    assert round_2.cands == [101, 102, 104]
+
+    assert round_1.approval_sets["alice"] == [101, 102]
+    assert round_1.approval_sets["bob"] == [102, 103]
 
     # alice actually voted in round 2; bob didn't, so bob should be
     # backfilled as indifferent, i.e. approving all of round 2's candidates.
-    assert round_2.approval_sets["alice"] == [2, 0]
+    assert round_2.approval_sets["alice"] == [104, 101]
     assert round_2.approval_sets["bob"] == round_2.cands
 
 
