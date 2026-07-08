@@ -1,6 +1,13 @@
 repos:
   - repo: local
     hooks:
+      - id: format
+        name: auto-fix + format (ruff)
+        entry: task format
+        language: system
+        types: [python]
+        pass_filenames: false
+
       - id: lint
         name: lint (ruff)
         entry: task lint

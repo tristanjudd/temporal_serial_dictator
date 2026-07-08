@@ -60,6 +60,7 @@ def _fill_missing_voters(approval_sequence: list[ApprovalProfile]) -> list[Appro
         for profile in approval_sequence
     ]
 
+
 def parse_tsoi(path: Path | str) -> ApprovalProfile:
     try:
         with open(path) as file:
@@ -68,28 +69,28 @@ def parse_tsoi(path: Path | str) -> ApprovalProfile:
         print(f"Error reading file '{path}': {e}", file=sys.stderr)
 
     try:
-        num_candidates = int(lines[0].split(',')[0])
+        num_candidates = int(lines[0].split(",")[0])
     except Exception as e:
         print(f"Error parsing number of candidates from file '{path}': {e}", file=sys.stderr)
 
     try:
-        num_voters = int(lines[num_candidates + 1].split(',')[0])
+        num_voters = int(lines[num_candidates + 1].split(",")[0])
     except Exception as e:
         print(f"Error parsing number of voters from file '{path}': {e}", file=sys.stderr)
 
     try:
-        candidate_lines = lines[1:num_candidates + 1]
-        candidate_id_strs = [line.split(',')[0] for line in candidate_lines]
+        candidate_lines = lines[1 : num_candidates + 1]
+        candidate_id_strs = [line.split(",")[0] for line in candidate_lines]
         candidates = [int(candidate_id) for candidate_id in candidate_id_strs]
         candidates.sort()
 
-        approval_lines = lines[num_candidates + 2:]
-        voters = [line[:line.find(':')] for line in approval_lines]
-        stripped_lines = [line[line.find(':') + 1:] for line in approval_lines]
-        token_rows = [line.split(',') for line in stripped_lines]
+        approval_lines = lines[num_candidates + 2 :]
+        voters = [line[: line.find(":")] for line in approval_lines]
+        stripped_lines = [line[line.find(":") + 1 :] for line in approval_lines]
+        token_rows = [line.split(",") for line in stripped_lines]
         token_rows = [row[1:] for row in token_rows]  # drop leading per-voter metadata field
         token_rows = [
-            [token[:token.find('[')] if '[' in token else token for token in row]
+            [token[: token.find("[")] if "[" in token else token for token in row]
             for row in token_rows
         ]
         approvals = [[int(token) for token in row] for row in token_rows]
@@ -99,14 +100,13 @@ def parse_tsoi(path: Path | str) -> ApprovalProfile:
 
     if len(approvals) != num_voters:
         raise Exception(
-            f"Expected {num_voters} voter approvals but got {len(approvals)} "
-            f"in file '{path}'"
+            f"Expected {num_voters} voter approvals but got {len(approvals)} in file '{path}'"
         )
 
     approval_profile = ApprovalProfile(
         voters=voters,
         cands=candidates,
-        approval_sets={voters[i]: approval_set for i, approval_set in enumerate(approvals)}
+        approval_sets={voters[i]: approval_set for i, approval_set in enumerate(approvals)},
     )
 
     return approval_profile

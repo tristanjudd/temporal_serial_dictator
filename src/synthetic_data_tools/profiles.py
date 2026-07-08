@@ -32,16 +32,22 @@ class ApprovalProfile:
         for v, appr in self.approval_sets.items():
             for c in appr:
                 if v not in voters:
-                    raise Exception(str(v) + " is not a valid voter; "
-                                    + "voters are " + str(voters) + ".")
+                    raise Exception(
+                        str(v) + " is not a valid voter; " + "voters are " + str(voters) + "."
+                    )
                 if c not in cands:
-                    raise Exception(str(c) + " is not a valid candidate; "
-                                    + "candidates are " + str(cands) + ".")
+                    raise Exception(
+                        str(c)
+                        + " is not a valid candidate; "
+                        + "candidates are "
+                        + str(cands)
+                        + "."
+                    )
 
     def __str__(self):
         return (
             f"Profile with {len(self.voters)} votes and {len(self.cands)} candidates: "
-            + ', '.join(map(str, self.approval_sets.values()))
+            + ", ".join(map(str, self.approval_sets.values()))
         )
 
     def __deepcopy__(self, memodict=None):
@@ -61,19 +67,15 @@ class ApprovalProfile:
 def uniformly_random_profile(voters, cands, approval_set_sizes):
     approval_sets = {}
     for v in voters:
-        approval_sets[v] = set(random.choice(cands, approval_set_sizes[v],
-                                             replace=False))
+        approval_sets[v] = set(random.choice(cands, approval_set_sizes[v], replace=False))
     return ApprovalProfile(voters, cands, approval_sets)
 
 
 # create approval profile from 2d coordinates (Euclidean distance)
-def approvalprofile_from_2d_euclidean(voters, cands, voter_points,
-                                      cand_points, threshold):
+def approvalprofile_from_2d_euclidean(voters, cands, voter_points, cand_points, threshold):
     approval_sets = {}
     for v in voters:
-        distances = {c: euclidean(voter_points[v], cand_points[c])
-                     for c in cands}
+        distances = {c: euclidean(voter_points[v], cand_points[c]) for c in cands}
         mindist = min(distances.values())
-        approval_sets[v] = [c for c in cands
-                            if distances[c] <= mindist * threshold]
+        approval_sets[v] = [c for c in cands if distances[c] <= mindist * threshold]
     return ApprovalProfile(voters, cands, approval_sets)

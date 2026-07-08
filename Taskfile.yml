@@ -26,9 +26,10 @@ tasks:
       - "{{.VENV}}/bin/ruff check ."
 
   format:
-    desc: Format code with ruff
+    desc: Auto-fix lint issues and format code with ruff
     deps: [install]
     cmds:
+      - "{{.VENV}}/bin/ruff check --fix ."
       - "{{.VENV}}/bin/ruff format ."
 
   typecheck:

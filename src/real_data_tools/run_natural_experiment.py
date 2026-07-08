@@ -113,9 +113,7 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run a serial dictator experiment on real temporal voting data."
     )
-    parser.add_argument(
-        "data_dir", type=Path, help="directory of .tsoi files, one round per file"
-    )
+    parser.add_argument("data_dir", type=Path, help="directory of .tsoi files, one round per file")
     return parser.parse_args()
 
 
