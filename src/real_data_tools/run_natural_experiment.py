@@ -16,13 +16,16 @@ they are printed to the terminal rather than taken as input.
 from __future__ import annotations
 
 import argparse
+import random
 import re
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 from rich.console import Console
 
 from ..encoding.encoding import save_decisions_json, save_profile_jsonl
+from ..synthetic_data_tools.profiles import ApprovalProfile
 from ..voting_rules.serial_dictator import SerialDictator
 from .tsoi_parser import parse_tsoi_directory
 
@@ -31,11 +34,44 @@ EXPERIMENTS_DIR = Path(__file__).resolve().parent.parent.parent / "experiments"
 console = Console()
 
 
-def run_natural_experiment(data_dir: Path | str) -> Path | None:
+def downsize_approval_profiles(
+    instance: Sequence[ApprovalProfile],
+    sample_size: int,
+    random_state: random.Random | None = None,
+) -> list[ApprovalProfile]:
+    """Randomly sample sample_size voters from the full set of voters
+    appearing anywhere in instance, and return a new instance restricted
+    to just those voters: same rounds and candidates, but each round's
+    approval_sets filtered down to only the sampled voters.
+    """
+    random_state = random_state if random_state is not None else random.Random()
+
+    unique_voters = set()
+    for profile in instance:
+        unique_voters.update(profile.voters)
+
+    sampled_voters = random_state.sample(list(unique_voters), sample_size)
+
+    return [
+        ApprovalProfile(
+            voters=sampled_voters,
+            cands=profile.cands,
+            approval_sets={voter: profile.approval_sets[voter] for voter in sampled_voters},
+        )
+        for profile in instance
+    ]
+
+
+def run_natural_experiment(
+    data_dir: Path | str, downsize: bool = False, sample_size: int = 25
+) -> Path | None:
     """Load a temporal voting instance from data_dir (a directory of
     .tsoi files, one round per file), run the serial dictator rule on it,
     and save the approval profile and decision sequence to
     experiments/<data_dir name>/run_<n>/. Returns that run directory.
+
+    If downsize is True, the instance is first restricted to a random
+    sample of sample_size voters (see downsize_approval_profiles).
 
     T, n, and m are determined by the dataset rather than passed in; they
     are printed to the terminal before the rule is run.
@@ -53,6 +89,9 @@ def run_natural_experiment(data_dir: Path | str) -> Path | None:
     if not instance:
         print(f"Error: no approval profiles loaded from '{data_dir}'", file=sys.stderr)
         return None
+
+    if downsize:
+        instance = downsize_approval_profiles(instance, sample_size)
 
     voters = list(instance[0].voters)
     T = len(instance)
@@ -114,9 +153,15 @@ def _parse_args() -> argparse.Namespace:
         description="Run a serial dictator experiment on real temporal voting data."
     )
     parser.add_argument("data_dir", type=Path, help="directory of .tsoi files, one round per file")
+    parser.add_argument(
+        "--downsize", action="store_true", help="restrict to a random sample of voters"
+    )
+    parser.add_argument(
+        "--sample-size", type=int, default=25, help="number of voters to sample if --downsize"
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = _parse_args()
-    run_natural_experiment(args.data_dir)
+    run_natural_experiment(args.data_dir, downsize=args.downsize, sample_size=args.sample_size)
