@@ -91,3 +91,16 @@ tasks:
       DIR: '{{.DIR | default .DEFAULT_DIR}}'
     cmds:
       - "{{.VENV}}/bin/python -m src.verification.verify_pjr experiments/{{.DIR}}"
+
+  convert-lackner-datasets:
+    desc: Convert all real .tsoi datasets to JSONL under real_data/json_datasets (skipped if already populated)
+    deps: [install]
+    status:
+      - 'test -d real_data/json_datasets && [ "$(ls -A real_data/json_datasets)" ]'
+    cmds:
+      - "{{.VENV}}/bin/python -m src.data_transformation.convert_lackner_datasets"
+
+  clean-json-datasets:
+    desc: Delete all converted JSONL datasets under real_data/json_datasets
+    cmds:
+      - rm -rf real_data/json_datasets
