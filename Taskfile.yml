@@ -69,7 +69,7 @@ tasks:
       - "{{.VENV}}/bin/python -m src.synthetic_data_tools.run_synthetic_experiment {{.T}} --n {{.N}} --m {{.M}} --num-experiments {{.NUM_EXPERIMENTS}}"
 
   natural-experiment:
-    desc: "Run a serial dictator experiment on real data (usage: task natural-experiment DIR=real_data/eurovision_song_contest_tsoi DOWNSIZE=true SAMPLE_SIZE=25)"
+    desc: "Run a serial dictator experiment on real data (usage: task natural-experiment DIR=real_data/json_datasets/eurovision_song_contest_tsoi DOWNSIZE=true SAMPLE_SIZE=25)"
     deps: [install]
     vars:
       DOWNSIZE: '{{.DOWNSIZE | default "false"}}'

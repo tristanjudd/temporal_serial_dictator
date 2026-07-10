@@ -1,10 +1,9 @@
 """Run a serial-dictator experiment on a real (natural) temporal voting
 dataset.
 
-Loads a temporal approval voting instance from a directory of .tsoi files
-(one round per file, all sharing the same voters, via
-tsoi_parser.parse_tsoi_directory), runs the serial dictator rule on it,
-and saves the approval profile and decision sequence under
+Loads a temporal approval voting instance from a pre-converted JSONL
+dataset (see data_transformation.tsoi_to_json), runs the serial dictator
+rule on it, and saves the approval profile and decision sequence under
 experiments/<dataset name>/run_<n>/, mirroring
 synthetic_data_tools.run_synthetic_experiment's pipeline.
 
@@ -16,6 +15,7 @@ they are printed to the terminal rather than taken as input.
 from __future__ import annotations
 
 import argparse
+import json
 import random
 import re
 import sys
@@ -27,11 +27,73 @@ from rich.console import Console
 from ..encoding.encoding import save_decisions_json, save_profile_jsonl
 from ..synthetic_data_tools.profiles import ApprovalProfile
 from ..voting_rules.serial_dictator import SerialDictator
-from .tsoi_parser import parse_tsoi_directory
 
 EXPERIMENTS_DIR = Path(__file__).resolve().parent.parent.parent / "experiments"
 
 console = Console()
+
+
+def load_jsonl_dataset(path: Path | str) -> tuple[dict, list[ApprovalProfile]] | None:
+    """Load a jsonl dataset produced by data_transformation.tsoi_to_json:
+    a metadata record ({"T", "voters", "candidates"}) on the first line,
+    followed by one record per round ({"round", "voters", "cands",
+    "approval_sets"}), in order.
+
+    Returns (metadata, instance), where instance is the list of
+    ApprovalProfile objects, one per round.
+
+    Errors are caught and reported as human-readable messages on stderr
+    rather than raised; None is returned if the dataset could not be
+    loaded.
+    """
+    try:
+        with open(path) as f:
+            lines = f.readlines()
+    except OSError as e:
+        print(f"Error reading '{path}': {e}", file=sys.stderr)
+        return None
+
+    if not lines:
+        print(f"Error: '{path}' is empty", file=sys.stderr)
+        return None
+
+    try:
+        metadata = json.loads(lines[0])
+        rounds = [json.loads(line) for line in lines[1:]]
+    except json.JSONDecodeError as e:
+        print(f"Error decoding '{path}': {e}", file=sys.stderr)
+        return None
+
+    if len(rounds) != metadata.get("T"):
+        print(
+            f"Error: '{path}' metadata declares T={metadata.get('T')} "
+            f"but has {len(rounds)} round(s)",
+            file=sys.stderr,
+        )
+        return None
+
+    for t, round_data in enumerate(rounds):
+        if round_data.get("round") != t:
+            print(
+                f"Error: '{path}' round {t} has unexpected index {round_data.get('round')}",
+                file=sys.stderr,
+            )
+            return None
+
+    try:
+        instance = [
+            ApprovalProfile(
+                voters=round_data["voters"],
+                cands=round_data["cands"],
+                approval_sets=round_data["approval_sets"],
+            )
+            for round_data in rounds
+        ]
+    except Exception as e:
+        print(f"Error building approval profiles from '{path}': {e}", file=sys.stderr)
+        return None
+
+    return metadata, instance
 
 
 def downsize_approval_profiles(
@@ -63,12 +125,12 @@ def downsize_approval_profiles(
 
 
 def run_natural_experiment(
-    data_dir: Path | str, downsize: bool = False, sample_size: int = 25
+    dataset_path: Path | str, downsize: bool = False, sample_size: int = 25
 ) -> Path | None:
-    """Load a temporal voting instance from data_dir (a directory of
-    .tsoi files, one round per file), run the serial dictator rule on it,
-    and save the approval profile and decision sequence to
-    experiments/<data_dir name>/run_<n>/. Returns that run directory.
+    """Load a temporal voting instance from dataset_path (a jsonl dataset,
+    see load_jsonl_dataset), run the serial dictator rule on it, and save
+    the approval profile and decision sequence to
+    experiments/<dataset name>/run_<n>/. Returns that run directory.
 
     If downsize is True, the instance is first restricted to a random
     sample of sample_size voters (see downsize_approval_profiles).
@@ -80,21 +142,16 @@ def run_natural_experiment(
     rather than raised; None is returned if the experiment could not be
     run or saved.
     """
-    try:
-        instance = parse_tsoi_directory(data_dir)
-    except Exception as e:
-        print(f"Error loading real data from '{data_dir}': {e}", file=sys.stderr)
+    loaded = load_jsonl_dataset(dataset_path)
+    if loaded is None:
         return None
-
-    if not instance:
-        print(f"Error: no approval profiles loaded from '{data_dir}'", file=sys.stderr)
-        return None
+    metadata, instance = loaded
 
     if downsize:
         instance = downsize_approval_profiles(instance, sample_size)
 
+    T = metadata["T"]
     voters = list(instance[0].voters)
-    T = len(instance)
     n = len(voters)
     cand_counts = {len(profile.cands) for profile in instance}
     if len(cand_counts) == 1:
@@ -102,7 +159,7 @@ def run_natural_experiment(
     else:
         m_description = f"{min(cand_counts)}-{max(cand_counts)}"
 
-    console.print(f"Dataset: [bold]{Path(data_dir).name}[/bold]")
+    console.print(f"Dataset: [bold]{Path(dataset_path).name}[/bold]")
     console.print(f"T (rounds) = {T}")
     console.print(f"n (voters) = {n}")
     console.print(f"m (candidates per round) = {m_description}")
@@ -114,7 +171,7 @@ def run_natural_experiment(
         print(f"Error running serial dictator: {e}", file=sys.stderr)
         return None
 
-    dataset_dir = EXPERIMENTS_DIR / Path(data_dir).name
+    dataset_dir = EXPERIMENTS_DIR / Path(dataset_path).name
     run_dir = dataset_dir / f"run_{_next_run_index(dataset_dir)}"
     try:
         run_dir.mkdir(parents=True)
@@ -152,7 +209,9 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run a serial dictator experiment on real temporal voting data."
     )
-    parser.add_argument("data_dir", type=Path, help="directory of .tsoi files, one round per file")
+    parser.add_argument(
+        "dataset_path", type=Path, help="path to a jsonl dataset (see data_transformation)"
+    )
     parser.add_argument(
         "--downsize", action="store_true", help="restrict to a random sample of voters"
     )
@@ -164,4 +223,4 @@ def _parse_args() -> argparse.Namespace:
 
 if __name__ == "__main__":
     args = _parse_args()
-    run_natural_experiment(args.data_dir, downsize=args.downsize, sample_size=args.sample_size)
+    run_natural_experiment(args.dataset_path, downsize=args.downsize, sample_size=args.sample_size)

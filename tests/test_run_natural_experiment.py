@@ -1,9 +1,9 @@
 from pathlib import Path
 
+from src.data_transformation.tsoi_to_json import tsoi_dir_to_json
 from src.encoding.decoding import load_decisions_json, load_profile_jsonl
 from src.real_data_tools import run_natural_experiment as run_natural_experiment_module
-from src.real_data_tools.run_natural_experiment import run_natural_experiment
-from src.real_data_tools.tsoi_parser import parse_tsoi_directory
+from src.real_data_tools.run_natural_experiment import load_jsonl_dataset, run_natural_experiment
 from src.voting_rules.serial_dictator import SerialDictator
 
 ROUND_1 = """3
@@ -25,18 +25,25 @@ alice:1,104[7],101[2]
 """
 
 
-def _write_dummy_dataset(directory: Path) -> Path:
-    directory.mkdir(parents=True, exist_ok=True)
-    (directory / "round_1.tsoi").write_text(ROUND_1)
-    (directory / "round_2.tsoi").write_text(ROUND_2)
-    return directory
+def _build_dummy_jsonl(tmp_path: Path, name: str = "dataset.jsonl") -> Path:
+    tsoi_dir = tmp_path / "tsoi_src"
+    tsoi_dir.mkdir(parents=True, exist_ok=True)
+    (tsoi_dir / "round_1.tsoi").write_text(ROUND_1)
+    (tsoi_dir / "round_2.tsoi").write_text(ROUND_2)
+
+    jsonl_path = tmp_path / name
+    tsoi_dir_to_json(tsoi_dir, jsonl_path)
+    return jsonl_path
 
 
-def test_parse_tsoi_directory_backfills_missing_voter_with_all_candidates(tmp_path: Path) -> None:
-    data_dir = _write_dummy_dataset(tmp_path)
+def test_load_jsonl_dataset_backfills_missing_voter_with_all_candidates(tmp_path: Path) -> None:
+    jsonl_path = _build_dummy_jsonl(tmp_path)
 
-    instance = parse_tsoi_directory(data_dir)
+    loaded = load_jsonl_dataset(jsonl_path)
+    assert loaded is not None
+    metadata, instance = loaded
 
+    assert metadata["T"] == 2
     assert len(instance) == 2
     round_1, round_2 = instance
 
@@ -56,9 +63,11 @@ def test_parse_tsoi_directory_backfills_missing_voter_with_all_candidates(tmp_pa
     assert round_2.approval_sets["bob"] == round_2.cands
 
 
-def test_serial_dictator_runs_on_parsed_natural_data(tmp_path: Path) -> None:
-    data_dir = _write_dummy_dataset(tmp_path)
-    instance = parse_tsoi_directory(data_dir)
+def test_serial_dictator_runs_on_loaded_natural_data(tmp_path: Path) -> None:
+    jsonl_path = _build_dummy_jsonl(tmp_path)
+    loaded = load_jsonl_dataset(jsonl_path)
+    assert loaded is not None
+    _, instance = loaded
 
     serial_dictator: SerialDictator[str, int] = SerialDictator(voters=["alice", "bob"])
     decisions = serial_dictator(instance)
@@ -69,11 +78,11 @@ def test_serial_dictator_runs_on_parsed_natural_data(tmp_path: Path) -> None:
 
 
 def test_run_natural_experiment_end_to_end(tmp_path: Path, monkeypatch) -> None:
-    data_dir = _write_dummy_dataset(tmp_path / "dataset")
+    jsonl_path = _build_dummy_jsonl(tmp_path, name="dataset")
     experiments_dir = tmp_path / "experiments"
     monkeypatch.setattr(run_natural_experiment_module, "EXPERIMENTS_DIR", experiments_dir)
 
-    run_dir = run_natural_experiment(data_dir)
+    run_dir = run_natural_experiment(jsonl_path)
 
     assert run_dir is not None
     assert run_dir == experiments_dir / "dataset" / "run_0"
@@ -88,5 +97,5 @@ def test_run_natural_experiment_end_to_end(tmp_path: Path, monkeypatch) -> None:
     assert list(instance[0].voters) == ["alice", "bob"]
 
     # running it again on the same dataset should not overwrite run_0.
-    second_run_dir = run_natural_experiment(data_dir)
+    second_run_dir = run_natural_experiment(jsonl_path)
     assert second_run_dir == experiments_dir / "dataset" / "run_1"
