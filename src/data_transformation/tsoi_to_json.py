@@ -74,13 +74,20 @@ def _fill_missing_voters(rounds: list[dict]) -> list[dict]:
     indifferent between that round's candidates, i.e. as approving all
     of them, rather than none.
     """
-    all_voters: list = []
-    seen_voters: set = set()
+    # all_voters: list = []
+    # seen_voters: set = set()
+    # for round_data in rounds:
+    #     for voter in round_data["voters"]:
+    #         if voter not in seen_voters:
+    #             seen_voters.add(voter)
+    #             all_voters.append(voter)
+
+    unique_voters = set()
     for round_data in rounds:
-        for voter in round_data["voters"]:
-            if voter not in seen_voters:
-                seen_voters.add(voter)
-                all_voters.append(voter)
+        unique_voters.update(round_data["voters"])
+
+    all_voters = list(unique_voters)
+    all_voters.sort()
 
     return [
         {
