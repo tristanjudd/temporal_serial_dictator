@@ -49,6 +49,11 @@ def run_synthetic_experiment(
     timestamp = datetime.now().strftime("%Y%m%dT%H%M%S%f")
     experiment_dir = EXPERIMENTS_DIR / f"T{T}-n{n}-{timestamp}"
 
+    # One SerialDictator, reused (and reset) across every run in the batch,
+    # so all runs share the same voter ordering and only the synthetic data
+    # varies from run to run.
+    serial_dictator: SerialDictator[int, int] = SerialDictator(voters=list(range(n)))
+
     start_time = time.perf_counter()
 
     results = []
@@ -62,6 +67,7 @@ def run_synthetic_experiment(
                 voter_point_mode=voter_point_mode,
                 cand_point_mode=cand_point_mode,
                 approval_threshold=approval_threshold,
+                serial_dictator=serial_dictator,
                 run_dir=experiment_dir / f"run_{i}",
                 announce=False,
             )
@@ -84,12 +90,17 @@ def _run_single_experiment(
     voter_point_mode: str,
     cand_point_mode: str,
     approval_threshold: float,
+    serial_dictator: SerialDictator[int, int],
     run_dir: Path,
     announce: bool = True,
 ) -> Path | None:
-    """Generate a synthetic instance of T rounds, run the serial dictator
-    rule on it, and save the approval profile and decision sequence to
-    run_dir. Returns run_dir.
+    """Generate a synthetic instance of T rounds, run serial_dictator on
+    it, and save the approval profile and decision sequence to run_dir.
+    Returns run_dir.
+
+    serial_dictator is reset (but not re-permuted) before running, so
+    repeated calls sharing the same SerialDictator instance all start
+    their rounds at permutation[0] again.
 
     Errors are caught and reported as human-readable messages on stderr
     rather than raised; None is returned if the experiment could not be
@@ -110,7 +121,7 @@ def _run_single_experiment(
         return None
 
     try:
-        serial_dictator: SerialDictator[int, int] = SerialDictator(voters=list(range(n)))
+        serial_dictator.reset()
         decisions = serial_dictator(instance)
     except (ValueError, ZeroDivisionError) as e:
         print(f"Error running serial dictator: {e}", file=sys.stderr)

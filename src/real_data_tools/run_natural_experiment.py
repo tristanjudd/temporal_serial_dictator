@@ -23,6 +23,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from rich.console import Console
+from rich.progress import track
 
 from ..encoding.encoding import save_decisions_json, save_profile_jsonl
 from ..synthetic_data_tools.profiles import ApprovalProfile
@@ -105,14 +106,25 @@ def downsize_approval_profiles(
     appearing anywhere in instance, and return a new instance restricted
     to just those voters: same rounds and candidates, but each round's
     approval_sets filtered down to only the sampled voters.
+
+    Sampled voters keep their relative order from instance (rather than
+    whatever order random sampling happens to produce), so repeated calls
+    against the same instance yield consistently ordered permutations
+    across different samples: e.g. if A appears before B in instance,
+    A comes before B in the result whenever both are sampled together.
     """
     random_state = random_state if random_state is not None else random.Random()
 
-    unique_voters = set()
+    all_voters = []
+    seen_voters = set()
     for profile in instance:
-        unique_voters.update(profile.voters)
+        for voter in profile.voters:
+            if voter not in seen_voters:
+                seen_voters.add(voter)
+                all_voters.append(voter)
 
-    sampled_voters = random_state.sample(list(unique_voters), sample_size)
+    sampled_set = set(random_state.sample(all_voters, sample_size))
+    sampled_voters = [voter for voter in all_voters if voter in sampled_set]
 
     return [
         ApprovalProfile(
@@ -125,34 +137,39 @@ def downsize_approval_profiles(
 
 
 def run_natural_experiment(
-    dataset_path: Path | str, downsize: bool = False, sample_size: int = 25
-) -> Path | None:
+    dataset_path: Path | str,
+    downsize: bool = False,
+    sample_size: int = 25,
+    num_experiments: int = 1,
+) -> list[Path | None]:
     """Load a temporal voting instance from dataset_path (a jsonl dataset,
     see load_jsonl_dataset), run the serial dictator rule on it, and save
     the approval profile and decision sequence to
-    experiments/<dataset name>/run_<n>/. Returns that run directory.
+    experiments/<dataset name>/run_<n>/ for each run.
 
-    If downsize is True, the instance is first restricted to a random
-    sample of sample_size voters (see downsize_approval_profiles).
+    If downsize is True, runs num_experiments independent runs, each
+    sampling a fresh random subset of sample_size voters from the full
+    dataset (see downsize_approval_profiles). The same SerialDictator is
+    reused across all runs and reset before each one, so every run shares
+    the same voter ordering (each sampled voter keeps its relative order
+    from the full dataset) and only the sampled voters differ from run to
+    run. If downsize is False, a single run is performed on the full
+    dataset regardless of num_experiments.
 
     T, n, and m are determined by the dataset rather than passed in; they
     are printed to the terminal before the rule is run.
 
-    Errors are caught and reported as human-readable messages on stderr
-    rather than raised; None is returned if the experiment could not be
-    run or saved.
+    Returns the list of run directories, one per run, in order; an entry
+    is None if that particular run failed. Returns an empty list if the
+    dataset could not be loaded.
     """
     loaded = load_jsonl_dataset(dataset_path)
     if loaded is None:
-        return None
+        return []
     metadata, instance = loaded
 
-    if downsize:
-        instance = downsize_approval_profiles(instance, sample_size)
-
     T = metadata["T"]
-    voters = list(instance[0].voters)
-    n = len(voters)
+    n = sample_size if downsize else len(instance[0].voters)
     cand_counts = {len(profile.cands) for profile in instance}
     if len(cand_counts) == 1:
         m_description = str(list(cand_counts)[0])
@@ -164,15 +181,57 @@ def run_natural_experiment(
     console.print(f"n (voters) = {n}")
     console.print(f"m (candidates per round) = {m_description}")
 
+    runs_to_do = num_experiments if downsize else 1
+    dataset_dir = EXPERIMENTS_DIR / Path(dataset_path).name
+    sampling_random_state = random.Random()
+    serial_dictator: SerialDictator[int, int] | None = None
+
+    results = []
+    for _ in track(range(runs_to_do), description="Running experiments..."):
+        run_instance = (
+            downsize_approval_profiles(instance, sample_size, sampling_random_state)
+            if downsize
+            else instance
+        )
+        voters = list(run_instance[0].voters)
+
+        if serial_dictator is None:
+            serial_dictator = SerialDictator(voters=voters)
+        else:
+            serial_dictator.voters = voters
+            serial_dictator.permutation = list(voters)
+            serial_dictator.reset()
+
+        run_dir = dataset_dir / f"run_{_next_run_index(dataset_dir)}"
+        results.append(_run_single_experiment(run_instance, serial_dictator, run_dir))
+
+    num_succeeded = sum(result is not None for result in results)
+    print(
+        f"Completed {runs_to_do} experiment(s): {num_succeeded} succeeded, "
+        f"{runs_to_do - num_succeeded} failed."
+    )
+    return results
+
+
+def _run_single_experiment(
+    run_instance: list[ApprovalProfile],
+    serial_dictator: SerialDictator[int, int],
+    run_dir: Path,
+) -> Path | None:
+    """Run serial_dictator (already reset, if reused) on run_instance, and
+    save the approval profile and decision sequence to run_dir. Returns
+    run_dir.
+
+    Errors are caught and reported as human-readable messages on stderr
+    rather than raised; None is returned if the run could not be
+    completed or saved.
+    """
     try:
-        serial_dictator: SerialDictator[int, int] = SerialDictator(voters=voters)
-        decisions = serial_dictator(instance)
+        decisions = serial_dictator(run_instance)
     except (ValueError, ZeroDivisionError, KeyError) as e:
         print(f"Error running serial dictator: {e}", file=sys.stderr)
         return None
 
-    dataset_dir = EXPERIMENTS_DIR / Path(dataset_path).name
-    run_dir = dataset_dir / f"run_{_next_run_index(dataset_dir)}"
     try:
         run_dir.mkdir(parents=True)
     except OSError as e:
@@ -181,14 +240,13 @@ def run_natural_experiment(
 
     approvals_path = run_dir / "approvals.jsonl"
     decisions_path = run_dir / "decisions.json"
-    save_profile_jsonl(instance, approvals_path)
+    save_profile_jsonl(run_instance, approvals_path)
     save_decisions_json(decisions, decisions_path)
 
     if not approvals_path.exists() or not decisions_path.exists():
         print(f"Error: experiment data was not fully saved to {run_dir}", file=sys.stderr)
         return None
 
-    print(f"Saved experiment to {run_dir}")
     return run_dir
 
 
@@ -218,9 +276,20 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--sample-size", type=int, default=25, help="number of voters to sample if --downsize"
     )
+    parser.add_argument(
+        "--num-experiments",
+        type=int,
+        default=1,
+        help="number of runs to perform if --downsize (ignored otherwise)",
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = _parse_args()
-    run_natural_experiment(args.dataset_path, downsize=args.downsize, sample_size=args.sample_size)
+    run_natural_experiment(
+        args.dataset_path,
+        downsize=args.downsize,
+        sample_size=args.sample_size,
+        num_experiments=args.num_experiments,
+    )

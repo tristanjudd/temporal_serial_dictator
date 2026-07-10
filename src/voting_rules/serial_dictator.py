@@ -16,6 +16,12 @@ class SerialDictator(Generic[Voter, Alternative]):
     of an instance; in round t, the voter at position t (mod n) of the
     permutation is the dictator, and the winner is chosen uniformly at random
     from that voter's approved alternatives.
+
+    By default the permutation is just the given voter order (the identity
+    permutation) -- deterministic, and isomorphic to any other fixed
+    permutation, since voter labels carry no meaning beyond identity. Call
+    permute_voters() explicitly to draw a fresh random permutation instead
+    (e.g. for a randomized-serial-dictator variant).
     """
 
     def __init__(
@@ -28,12 +34,27 @@ class SerialDictator(Generic[Voter, Alternative]):
         self._random_state = random_state if random_state is not None else random.Random()
         if permutation is None:
             permutation = voters.copy()
-            self._random_state.shuffle(permutation)
         elif set(permutation) != set(voters):
             raise ValueError("permutation must contain exactly the given voters")
         self.voters = voters
         self.permutation = list(permutation)
         self.round = 0
+
+    def reset(self) -> None:
+        """Restart the round counter, keeping the current permutation.
+
+        Use this between independent runs that should share the same
+        voter ordering (e.g. repeated runs over fresh synthetic
+        instances), so each run's rounds start at permutation[0] again
+        instead of continuing on from the previous run.
+        """
+        self.round = 0
+
+    def permute_voters(self) -> None:
+        """Draw a fresh random permutation over the voters, and reset the
+        round counter so the next call starts from the beginning of it."""
+        self._random_state.shuffle(self.permutation)
+        self.reset()
 
     def __call__(
         self, instance: Sequence[ApprovalProfile[Voter, Alternative]]

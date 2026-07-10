@@ -82,10 +82,11 @@ def test_run_natural_experiment_end_to_end(tmp_path: Path, monkeypatch) -> None:
     experiments_dir = tmp_path / "experiments"
     monkeypatch.setattr(run_natural_experiment_module, "EXPERIMENTS_DIR", experiments_dir)
 
-    run_dir = run_natural_experiment(jsonl_path)
+    run_dirs = run_natural_experiment(jsonl_path)
 
+    assert run_dirs == [experiments_dir / "dataset" / "run_0"]
+    run_dir = run_dirs[0]
     assert run_dir is not None
-    assert run_dir == experiments_dir / "dataset" / "run_0"
 
     instance = load_profile_jsonl(run_dir / "approvals.jsonl")
     decisions = load_decisions_json(run_dir / "decisions.json")
@@ -97,5 +98,60 @@ def test_run_natural_experiment_end_to_end(tmp_path: Path, monkeypatch) -> None:
     assert list(instance[0].voters) == ["alice", "bob"]
 
     # running it again on the same dataset should not overwrite run_0.
-    second_run_dir = run_natural_experiment(jsonl_path)
-    assert second_run_dir == experiments_dir / "dataset" / "run_1"
+    second_run_dirs = run_natural_experiment(jsonl_path)
+    assert second_run_dirs == [experiments_dir / "dataset" / "run_1"]
+
+
+# 5 voters across 2 rounds (with distinct candidate ids per round), used to
+# exercise downsizing across multiple runs.
+ROUND_1_FIVE_VOTERS = """2
+101,Candidate A
+102,Candidate B
+5,5,5
+v1:1,101[10]
+v2:1,101[9]
+v3:1,102[8]
+v4:1,102[7]
+v5:1,101[6]
+"""
+
+ROUND_2_FIVE_VOTERS = """2
+201,Candidate X
+202,Candidate Y
+5,5,5
+v1:1,201[5]
+v2:1,202[4]
+v3:1,201[3]
+v4:1,202[2]
+v5:1,201[1]
+"""
+
+
+def test_run_natural_experiment_downsize_preserves_master_order(
+    tmp_path: Path, monkeypatch
+) -> None:
+    tsoi_dir = tmp_path / "tsoi_src"
+    tsoi_dir.mkdir(parents=True, exist_ok=True)
+    (tsoi_dir / "round_1.tsoi").write_text(ROUND_1_FIVE_VOTERS)
+    (tsoi_dir / "round_2.tsoi").write_text(ROUND_2_FIVE_VOTERS)
+    jsonl_path = tmp_path / "dataset"
+    tsoi_dir_to_json(tsoi_dir, jsonl_path)
+
+    experiments_dir = tmp_path / "experiments"
+    monkeypatch.setattr(run_natural_experiment_module, "EXPERIMENTS_DIR", experiments_dir)
+
+    master_order = ["v1", "v2", "v3", "v4", "v5"]
+    run_dirs = run_natural_experiment(jsonl_path, downsize=True, sample_size=2, num_experiments=5)
+
+    assert len(run_dirs) == 5
+    for run_dir in run_dirs:
+        assert run_dir is not None
+        instance = load_profile_jsonl(run_dir / "approvals.jsonl")
+        assert instance is not None
+
+        sampled_voters = list(instance[0].voters)
+        assert len(sampled_voters) == 2
+        # whichever two voters were sampled, they appear in the same
+        # relative order as in the full (master) dataset.
+        expected_order = [voter for voter in master_order if voter in sampled_voters]
+        assert sampled_voters == expected_order
