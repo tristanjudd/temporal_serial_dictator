@@ -4,18 +4,11 @@ from __future__ import annotations
 
 import json
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Protocol, TypeVar
+from typing import Any
 
-Voter = TypeVar("Voter")
-Alternative = TypeVar("Alternative")
-
-
-class ApprovalProfile(Protocol[Voter, Alternative]):
-    voters: Sequence[Voter]
-    cands: Sequence[Alternative]
-    approval_sets: Mapping[Voter, Any]
+from .._typing import ApprovalProfile
 
 
 def save_profile_jsonl(instance: Sequence[ApprovalProfile[Any, Any]], path: str | Path) -> None:

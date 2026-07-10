@@ -3,19 +3,10 @@
 from __future__ import annotations
 
 import random
-from collections.abc import Mapping, Sequence
-from typing import Any, Generic, Protocol, TypeVar
+from collections.abc import Sequence
+from typing import Generic
 
-Voter = TypeVar("Voter")
-Alternative = TypeVar("Alternative")
-
-
-class ApprovalProfile(Protocol[Voter]):
-    """Shape of a single round's approval ballots, as produced by Lackner's
-    synthetic data generators (see profiles.ApprovalProfile)."""
-
-    voters: Sequence[Voter]
-    approval_sets: Mapping[Voter, Any]
+from .._typing import Alternative, ApprovalProfile, Voter
 
 
 class SerialDictator(Generic[Voter, Alternative]):
@@ -44,7 +35,9 @@ class SerialDictator(Generic[Voter, Alternative]):
         self.permutation = list(permutation)
         self.round = 0
 
-    def __call__(self, instance: Sequence[ApprovalProfile[Voter]]) -> list[Alternative]:
+    def __call__(
+        self, instance: Sequence[ApprovalProfile[Voter, Alternative]]
+    ) -> list[Alternative]:
         winners: list[Alternative] = []
         for profile in instance:
             dictator = self.permutation[self.round % len(self.permutation)]

@@ -2,24 +2,21 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from typing import Any, Protocol
+from collections.abc import Sequence
+from typing import Any
 
 from rich.console import Console
 from rich.table import Table
+
+from .._typing import ApprovalProfile
 
 COLUMN_WIDTH = 9
 VOTER_COLUMN_WIDTH = 7
 GAP_LABEL = "..."
 
 
-class ApprovalProfile(Protocol):
-    voters: Sequence[Any]
-    approval_sets: Mapping[Any, Any]
-
-
 def print_profile(
-    instance: Sequence[ApprovalProfile],
+    instance: Sequence[ApprovalProfile[Any, Any]],
     decisions: Sequence[Any] | None = None,
     permutation: Sequence[Any] | None = None,
 ) -> None:
