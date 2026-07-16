@@ -49,17 +49,20 @@ class Config:
 def build_grid() -> list[Config]:
     """Build the (n, m, T, threshold) configuration grid.
 
-    T is derived per n from T_DIVISORS as n // divisor (minimum 1); for
-    small n, several divisors can floor to the same T (e.g. n=5 gives T=1
-    for both divisor 4 and 8), so duplicate T values per n collapse to a
-    single configuration rather than being run twice.
+    T is derived per n from T_DIVISORS as n // divisor; duplicate T
+    values for a given n (multiple divisors flooring to the same T)
+    collapse to a single configuration rather than being run twice. T=1
+    is excluded entirely: with only one round, the only group that can
+    qualify for representation is everyone (N itself), and any candidate
+    approved by anyone trivially satisfies it -- so T=1 instances are
+    trivially PJR-satisfying and not worth including in the grid.
     """
     configs = []
     for n in N_VALUES:
         t_values: list[int] = []
         for divisor in T_DIVISORS:
-            t = max(1, n // divisor)
-            if t not in t_values:
+            t = n // divisor
+            if t > 1 and t not in t_values:
                 t_values.append(t)
         for m, t, threshold in itertools.product(M_VALUES, t_values, THRESHOLDS):
             configs.append(Config(n=n, m=m, T=t, approval_threshold=threshold))
