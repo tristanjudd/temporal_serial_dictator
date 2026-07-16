@@ -81,7 +81,7 @@ tasks:
   clean-experiments:
     desc: Delete all generated experiment output
     cmds:
-      - rm -rf experiments/*
+      - rm -rf experiments/* 
 
   verify-pjr:
     desc: "Verify PJR for a saved experiment (usage: task verify-pjr DIR=T20-n20-..., defaults to the most recent experiment)"
@@ -92,6 +92,17 @@ tasks:
       DIR: '{{.DIR | default .DEFAULT_DIR}}'
     cmds:
       - "{{.VENV}}/bin/python -m src.verification.verify_pjr experiments/{{.DIR}}"
+
+  multi-verify-pjr:
+    desc: "Verify PJR for a saved experiment using multiprocessing (usage: task multi-verify-pjr DIR=T20-n20-... MAX_WORKERS=8, defaults to the most recent experiment and all CPU cores)"
+    deps: [install]
+    vars:
+      DEFAULT_DIR:
+        sh: ls -t experiments | head -1
+      DIR: '{{.DIR | default .DEFAULT_DIR}}'
+      MAX_WORKERS: '{{.MAX_WORKERS | default ""}}'
+    cmds:
+      - "{{.VENV}}/bin/python -m src.verification.multiprocessing_verify_pjr experiments/{{.DIR}}{{if .MAX_WORKERS}} --max-workers {{.MAX_WORKERS}}{{end}}"
 
   convert-lackner-datasets:
     desc: Convert all real .tsoi datasets to JSONL under real_data/json_datasets (skipped if already populated)
