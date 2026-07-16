@@ -58,15 +58,16 @@ tasks:
       - "{{.VENV}}/bin/pre-commit install"
 
   synthetic-experiment:
-    desc: "Run synthetic serial dictator experiments (usage: task synthetic-experiment T=20 N=20 M=5 NUM_EXPERIMENTS=100)"
+    desc: "Run synthetic serial dictator experiments (usage: task synthetic-experiment T=20 N=20 M=5 THRESHOLD=1.5 NUM_EXPERIMENTS=100)"
     deps: [install]
     vars:
       T: '{{.T | default "20"}}'
       N: '{{.N | default "20"}}'
       M: '{{.M | default "5"}}'
+      THRESHOLD: '{{.THRESHOLD | default "1.5"}}'
       NUM_EXPERIMENTS: '{{.NUM_EXPERIMENTS | default "1"}}'
     cmds:
-      - "{{.VENV}}/bin/python -m src.synthetic_data_tools.run_synthetic_experiment {{.T}} --n {{.N}} --m {{.M}} --num-experiments {{.NUM_EXPERIMENTS}}"
+      - "{{.VENV}}/bin/python -m src.synthetic_data_tools.run_synthetic_experiment {{.T}} --n {{.N}} --m {{.M}} --approval-threshold {{.THRESHOLD}} --num-experiments {{.NUM_EXPERIMENTS}}"
 
   natural-experiment:
     desc: "Run a serial dictator experiment on real data (usage: task natural-experiment DIR=real_data/json_datasets/eurovision_song_contest_tsoi DOWNSIZE=true SAMPLE_SIZE=25 NUM_EXPERIMENTS=10)"
@@ -77,6 +78,14 @@ tasks:
       NUM_EXPERIMENTS: '{{.NUM_EXPERIMENTS | default "1"}}'
     cmds:
       - "{{.VENV}}/bin/python -m src.real_data_tools.run_natural_experiment {{.DIR}} {{if eq .DOWNSIZE \"true\"}}--downsize {{end}}--sample-size {{.SAMPLE_SIZE}} --num-experiments {{.NUM_EXPERIMENTS}}"
+
+  aaai-experiment:
+    desc: "Run the paper's synthetic experiment grid (usage: task aaai-experiment NUM_EXPERIMENTS=1000)"
+    deps: [install]
+    vars:
+      NUM_EXPERIMENTS: '{{.NUM_EXPERIMENTS | default "10"}}'
+    cmds:
+      - "{{.VENV}}/bin/python -m src.synthetic_data_tools.aaai_experiment --num-experiments {{.NUM_EXPERIMENTS}}"
 
   clean-experiments:
     desc: Delete all generated experiment output

@@ -9,6 +9,7 @@ whole batch and <RUN> is one individual run within it.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import time
 from datetime import datetime
@@ -32,13 +33,19 @@ def run_synthetic_experiment(
     cand_point_mode: str = "uniform_square",
     approval_threshold: float = 1.5,
     num_experiments: int = 1,
+    experiment_dir: Path | None = None,
+    run_offset: int = 0,
 ) -> list[Path | None]:
     """Run num_experiments independent synthetic serial dictator
     experiments, each with a freshly generated instance of T rounds.
 
-    Creates one experiment directory under experiments/, and within it one
-    run_<i>/ subdirectory per experiment, each holding that run's approval
-    profile and decision sequence.
+    Creates one experiment directory under experiments/ (unless
+    experiment_dir is given, in which case that directory is used
+    instead -- e.g. so multiple calls with different parameters can share
+    a single parent directory), and within it one run_<i>/ subdirectory
+    per experiment (starting at run_offset rather than 0, if given), each
+    holding that run's approval profile, decision sequence, and metadata
+    (the generation parameters, as metadata.json).
 
     Displays a progress bar for the experiments as they run, and prints a
     summary with the total elapsed time once all of them are done.
@@ -46,8 +53,9 @@ def run_synthetic_experiment(
     Returns the list of run directories, one per experiment, in order; an
     entry is None if that particular experiment failed.
     """
-    timestamp = datetime.now().strftime("%Y%m%dT%H%M%S%f")
-    experiment_dir = EXPERIMENTS_DIR / f"T{T}-n{n}-{timestamp}"
+    if experiment_dir is None:
+        timestamp = datetime.now().strftime("%Y%m%dT%H%M%S%f")
+        experiment_dir = EXPERIMENTS_DIR / f"T{T}-n{n}-{timestamp}"
 
     # One SerialDictator, reused (and reset) across every run in the batch,
     # so all runs share the same voter ordering and only the synthetic data
@@ -68,7 +76,7 @@ def run_synthetic_experiment(
                 cand_point_mode=cand_point_mode,
                 approval_threshold=approval_threshold,
                 serial_dictator=serial_dictator,
-                run_dir=experiment_dir / f"run_{i}",
+                run_dir=experiment_dir / f"run_{run_offset + i}",
                 announce=False,
             )
         )
@@ -95,8 +103,8 @@ def _run_single_experiment(
     announce: bool = True,
 ) -> Path | None:
     """Generate a synthetic instance of T rounds, run serial_dictator on
-    it, and save the approval profile and decision sequence to run_dir.
-    Returns run_dir.
+    it, and save the approval profile, decision sequence, and generation
+    parameters (as metadata.json) to run_dir. Returns run_dir.
 
     serial_dictator is reset (but not re-permuted) before running, so
     repeated calls sharing the same SerialDictator instance all start
@@ -135,10 +143,28 @@ def _run_single_experiment(
 
     approvals_path = run_dir / "approvals.jsonl"
     decisions_path = run_dir / "decisions.json"
+    metadata_path = run_dir / "metadata.json"
     save_profile_jsonl(instance, approvals_path)
     save_decisions_json(decisions, decisions_path)
+    try:
+        metadata_path.write_text(
+            json.dumps(
+                {
+                    "T": T,
+                    "n": n,
+                    "m": m,
+                    "sigma": sigma,
+                    "voter_point_mode": voter_point_mode,
+                    "cand_point_mode": cand_point_mode,
+                    "approval_threshold": approval_threshold,
+                }
+            )
+        )
+    except OSError as e:
+        print(f"Error writing metadata to '{metadata_path}': {e}", file=sys.stderr)
+        return None
 
-    if not approvals_path.exists() or not decisions_path.exists():
+    if not approvals_path.exists() or not decisions_path.exists() or not metadata_path.exists():
         print(f"Error: experiment data was not fully saved to {run_dir}", file=sys.stderr)
         return None
 
