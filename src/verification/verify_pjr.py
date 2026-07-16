@@ -72,14 +72,42 @@ def find_pjr_violations(
     return violations
 
 
+def _load_metadata(run_dir: Path) -> dict[str, Any] | None:
+    """Load run_dir/metadata.json if it exists.
+
+    Returns None if there is no metadata file, or if it could not be
+    parsed -- runs without metadata (e.g. predating metadata.json) are
+    still verified normally, just without parameter info in the logs.
+    """
+    metadata_path = run_dir / "metadata.json"
+    if not metadata_path.exists():
+        return None
+    try:
+        return json.loads(metadata_path.read_text())
+    except (OSError, json.JSONDecodeError) as e:
+        print(f"Warning: could not read metadata from '{metadata_path}': {e}", file=sys.stderr)
+        return None
+
+
+def _format_metadata(metadata: dict[str, Any] | None) -> str:
+    """Format a run's metadata as a trailing string for log/console
+    lines, e.g. " (n=5, m=10, T=5, approval_threshold=1.5)". Empty
+    string if there is no metadata to show.
+    """
+    if not metadata:
+        return ""
+    return " (" + ", ".join(f"{key}={value}" for key, value in metadata.items()) + ")"
+
+
 def verify_run(run_dir: Path) -> dict[str, Any] | None:
     """Load a run's approval profile and decision sequence, check PJR for
     every voter subset, and save the violations to run_dir/violations.jsonl.
 
-    Returns {"num_violations", "worst"} for this run ("worst" is the
-    violation with the largest bound-satisfaction gap, or None if there
-    were no violations), or None if the run's data could not be loaded or
-    the violations could not be saved.
+    Returns {"num_violations", "worst", "metadata"} for this run ("worst"
+    is the violation with the largest bound-satisfaction gap, or None if
+    there were no violations; "metadata" is the run's metadata.json
+    contents, or None if it doesn't exist), or None if the run's data
+    could not be loaded or the violations could not be saved.
     """
     instance = load_profile_jsonl(run_dir / "approvals.jsonl")
     decisions = load_decisions_json(run_dir / "decisions.json")
@@ -87,6 +115,7 @@ def verify_run(run_dir: Path) -> dict[str, Any] | None:
         print(f"Skipping {run_dir}: could not load approvals/decisions.", file=sys.stderr)
         return None
 
+    metadata = _load_metadata(run_dir)
     violations = find_pjr_violations(instance, decisions)
 
     violations_path = run_dir / "violations.jsonl"
@@ -99,18 +128,20 @@ def verify_run(run_dir: Path) -> dict[str, Any] | None:
         return None
 
     worst = max(violations, key=lambda v: v["bound"] - v["satisfaction"], default=None)
+    metadata_str = _format_metadata(metadata)
 
     if worst is None:
-        console.print(f"{run_dir.name}: [bold green]PJR satisfied[/bold green]")
+        console.print(f"{run_dir.name}: [bold green]PJR satisfied[/bold green]{metadata_str}")
     else:
         gap = worst["bound"] - worst["satisfaction"]
         console.print(
             f"{run_dir.name}: [bold red]PJR violated[/bold red] "
             f"({len(violations)} violation(s), worst: group {worst['voters']} "
             f"bound={worst['bound']} satisfaction={worst['satisfaction']} gap={gap})"
+            f"{metadata_str}"
         )
 
-    return {"num_violations": len(violations), "worst": worst}
+    return {"num_violations": len(violations), "worst": worst, "metadata": metadata}
 
 
 def verify_experiment(experiment_dir: Path) -> None:
@@ -135,7 +166,7 @@ def verify_experiment(experiment_dir: Path) -> None:
 
     num_runs_violating = 0
     total_violations = 0
-    worst_overall: tuple[str, int, dict[str, Any]] | None = None
+    worst_overall: tuple[str, int, dict[str, Any], dict[str, Any] | None] | None = None
 
     for run_dir in run_dirs:
         summary = verify_run(run_dir)
@@ -150,7 +181,7 @@ def verify_experiment(experiment_dir: Path) -> None:
         if worst is not None:
             gap = worst["bound"] - worst["satisfaction"]
             if worst_overall is None or gap > worst_overall[1]:
-                worst_overall = (run_dir.name, gap, worst)
+                worst_overall = (run_dir.name, gap, worst, summary["metadata"])
 
     satisfied = num_runs_violating == 0
     summary_lines = [
@@ -161,10 +192,11 @@ def verify_experiment(experiment_dir: Path) -> None:
         f"Total violating groups: {total_violations}",
     ]
     if worst_overall is not None:
-        run_name, gap, worst = worst_overall
+        run_name, gap, worst, metadata = worst_overall
         summary_lines.append(
             f"Worst violation: run {run_name}, group {worst['voters']}, "
             f"bound={worst['bound']}, satisfaction={worst['satisfaction']}, gap={gap}"
+            f"{_format_metadata(metadata)}"
         )
     summary_text = "\n".join(summary_lines)
 
@@ -182,10 +214,11 @@ def verify_experiment(experiment_dir: Path) -> None:
     console.print(f"Runs violating PJR: {num_runs_violating}")
     console.print(f"Total violating groups: {total_violations}")
     if worst_overall is not None:
-        run_name, gap, worst = worst_overall
+        run_name, gap, worst, metadata = worst_overall
         console.print(
             f"Worst violation: run [bold]{run_name}[/bold], group {worst['voters']}, "
             f"bound={worst['bound']}, satisfaction={worst['satisfaction']}, gap={gap}"
+            f"{_format_metadata(metadata)}"
         )
 
 
