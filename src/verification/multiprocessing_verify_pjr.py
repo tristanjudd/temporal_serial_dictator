@@ -142,14 +142,22 @@ def _load_metadata(run_dir: Path) -> dict[str, Any] | None:
         return None
 
 
+def _format_metadata_plain(metadata: dict[str, Any] | None) -> str:
+    """Format a run's metadata as "key=value, key=value, ...". Empty
+    string if there is no metadata to show.
+    """
+    if not metadata:
+        return ""
+    return ", ".join(f"{key}={value}" for key, value in metadata.items())
+
+
 def _format_metadata(metadata: dict[str, Any] | None) -> str:
     """Format a run's metadata as a trailing string for log/console
     lines, e.g. " (n=5, m=10, T=5, approval_threshold=1.5)". Empty
     string if there is no metadata to show.
     """
-    if not metadata:
-        return ""
-    return " (" + ", ".join(f"{key}={value}" for key, value in metadata.items()) + ")"
+    plain = _format_metadata_plain(metadata)
+    return f" ({plain})" if plain else ""
 
 
 def verify_run(run_dir: Path, max_workers: int | None = None) -> dict[str, Any] | None:
@@ -203,9 +211,10 @@ def verify_experiment(experiment_dir: Path, max_workers: int | None = None) -> N
     process pool for each run's verification.
 
     Saves a violations.jsonl into each run subdirectory, and a summary
-    log (whether PJR is satisfied, how many violations, and the worst
-    one) into experiment_dir itself. The same summary is printed to
-    stdout.
+    log (whether PJR is satisfied, how many violations, the worst one,
+    and -- for runs with metadata.json -- a breakdown of violations by
+    configuration, for configurations with at least one violation) into
+    experiment_dir itself. The same summary is printed to stdout.
     """
     if not experiment_dir.is_dir():
         print(f"Error: '{experiment_dir}' is not a directory.", file=sys.stderr)
@@ -222,6 +231,9 @@ def verify_experiment(experiment_dir: Path, max_workers: int | None = None) -> N
     num_runs_violating = 0
     total_violations = 0
     worst_overall: tuple[str, int, dict[str, Any], dict[str, Any] | None] | None = None
+    # keyed by a canonical (sorted-key) json rendering of a run's metadata,
+    # so runs sharing the same configuration accumulate into the same entry.
+    config_stats: dict[str, dict[str, Any]] = {}
 
     for run_dir in run_dirs:
         summary = verify_run(run_dir, max_workers)
@@ -233,10 +245,23 @@ def verify_experiment(experiment_dir: Path, max_workers: int | None = None) -> N
             num_runs_violating += 1
 
         worst = summary["worst"]
+        metadata = summary["metadata"]
         if worst is not None:
             gap = worst["bound"] - worst["satisfaction"]
             if worst_overall is None or gap > worst_overall[1]:
-                worst_overall = (run_dir.name, gap, worst, summary["metadata"])
+                worst_overall = (run_dir.name, gap, worst, metadata)
+
+            if metadata:
+                config_key = json.dumps(metadata, sort_keys=True)
+                stats = config_stats.setdefault(
+                    config_key,
+                    {"metadata": metadata, "num_violations": 0, "worst_gap": -1, "worst": None},
+                )
+                stats["num_violations"] += summary["num_violations"]
+                if gap > stats["worst_gap"]:
+                    stats["worst_gap"] = gap
+                    stats["worst"] = worst
+                    stats["worst_run"] = run_dir.name
 
     satisfied = num_runs_violating == 0
     summary_lines = [
@@ -253,6 +278,18 @@ def verify_experiment(experiment_dir: Path, max_workers: int | None = None) -> N
             f"bound={worst['bound']}, satisfaction={worst['satisfaction']}, gap={gap}"
             f"{_format_metadata(metadata)}"
         )
+    if config_stats:
+        summary_lines.append("")
+        summary_lines.append("Violations by configuration:")
+        for stats in sorted(config_stats.values(), key=lambda s: s["num_violations"], reverse=True):
+            worst = stats["worst"]
+            summary_lines.append(
+                f"  {_format_metadata_plain(stats['metadata'])}: "
+                f"{stats['num_violations']} violation(s), "
+                f"worst: run {stats['worst_run']}, group {worst['voters']}, "
+                f"bound={worst['bound']}, satisfaction={worst['satisfaction']}, "
+                f"gap={stats['worst_gap']}"
+            )
     summary_text = "\n".join(summary_lines)
 
     log_path = experiment_dir / "pjr_summary.log"
@@ -275,6 +312,17 @@ def verify_experiment(experiment_dir: Path, max_workers: int | None = None) -> N
             f"bound={worst['bound']}, satisfaction={worst['satisfaction']}, gap={gap}"
             f"{_format_metadata(metadata)}"
         )
+    if config_stats:
+        console.print("[bold]Violations by configuration:[/bold]")
+        for stats in sorted(config_stats.values(), key=lambda s: s["num_violations"], reverse=True):
+            worst = stats["worst"]
+            console.print(
+                f"  {_format_metadata_plain(stats['metadata'])}: "
+                f"{stats['num_violations']} violation(s), "
+                f"worst: run {stats['worst_run']}, group {worst['voters']}, "
+                f"bound={worst['bound']}, satisfaction={worst['satisfaction']}, "
+                f"gap={stats['worst_gap']}"
+            )
 
 
 def _parse_args() -> argparse.Namespace:
