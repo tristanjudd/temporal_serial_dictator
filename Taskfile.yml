@@ -87,6 +87,14 @@ tasks:
     cmds:
       - "{{.VENV}}/bin/python -m src.synthetic_data_tools.aaai_experiment --num-experiments {{.NUM_EXPERIMENTS}}"
 
+  real-aaai-experiment:
+    desc: "Run the paper's real-data experiment grid (usage: task real-aaai-experiment NUM_EXPERIMENTS=1000)"
+    deps: [install]
+    vars:
+      NUM_EXPERIMENTS: '{{.NUM_EXPERIMENTS | default "10"}}'
+    cmds:
+      - "{{.VENV}}/bin/python -m src.real_data_tools.real_aaai_experiment --num-experiments {{.NUM_EXPERIMENTS}}"
+
   clean-experiments:
     desc: Delete all generated experiment output
     cmds:
