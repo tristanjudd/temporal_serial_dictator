@@ -22,16 +22,22 @@ class SerialDictator(Generic[Voter, Alternative]):
     permutation, since voter labels carry no meaning beyond identity. Call
     permute_voters() explicitly to draw a fresh random permutation instead
     (e.g. for a randomized-serial-dictator variant).
+
+    seed makes both sources of randomness reproducible: the winner choice
+    made on every call (random.Random.choice over the dictator's approved
+    alternatives) and, if permute_voters() is ever used, the permutation
+    shuffle. The same seed always produces the same sequence of choices
+    across repeated calls to the same SerialDictator instance.
     """
 
     def __init__(
         self,
         voters: Sequence[Voter],
         permutation: Sequence[Voter] | None = None,
-        random_state: random.Random | None = None,
+        seed: int | None = None,
     ) -> None:
         voters = list(voters)
-        self._random_state = random_state if random_state is not None else random.Random()
+        self._random_state = random.Random(seed)
         if permutation is None:
             permutation = voters.copy()
         elif set(permutation) != set(voters):
