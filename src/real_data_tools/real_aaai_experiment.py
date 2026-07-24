@@ -55,6 +55,10 @@ def run_real_aaai_experiment(num_experiments: int = 10) -> None:
     each on a fresh random sample of SAMPLE_SIZE voters; datasets with
     SAMPLE_SIZE voters or fewer get exactly one run on their full voter
     set.
+
+    A dataset that raises any error partway through (rather than failing
+    gracefully with None, like a load error) is reported and skipped,
+    rather than aborting the remaining datasets.
     """
     if not DATASETS_DIR.is_dir():
         print(f"Error: '{DATASETS_DIR}' is not a directory.", file=sys.stderr)
@@ -66,7 +70,11 @@ def run_real_aaai_experiment(num_experiments: int = 10) -> None:
         return
 
     for dataset_path in dataset_paths:
-        _run_dataset(dataset_path, num_experiments)
+        try:
+            _run_dataset(dataset_path, num_experiments)
+        except Exception as e:
+            print(f"Error running experiment for '{dataset_path.name}': {e}", file=sys.stderr)
+            continue
 
 
 def _run_dataset(dataset_path: Path, num_experiments: int) -> None:

@@ -29,13 +29,20 @@ class ApprovalProfile:
         else:
             raise Exception("type of approval_sets neither dict nor list")
         self.cands = cands
+        # Membership is checked against sets rather than voters/cands
+        # directly -- those are kept as lists (order matters elsewhere),
+        # but checking `in` on a list is O(n); with large candidate
+        # counts and approval sets, checking every approved candidate
+        # against a list made this validation loop quadratic.
+        voters_set = set(voters)
+        cands_set = set(cands)
         for v, appr in self.approval_sets.items():
+            if v not in voters_set:
+                raise Exception(
+                    str(v) + " is not a valid voter; " + "voters are " + str(voters) + "."
+                )
             for c in appr:
-                if v not in voters:
-                    raise Exception(
-                        str(v) + " is not a valid voter; " + "voters are " + str(voters) + "."
-                    )
-                if c not in cands:
+                if c not in cands_set:
                     raise Exception(
                         str(c)
                         + " is not a valid candidate; "
