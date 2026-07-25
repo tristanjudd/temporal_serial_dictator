@@ -7,6 +7,7 @@ dependencies = ["numpy>=1.22", "scipy>=1.10", "rich>=13"]
 
 [project.optional-dependencies]
 dev = ["ruff", "mypy", "pytest", "pre-commit"]
+eda = ["jupyter", "ipykernel", "pandas", "matplotlib"]
 
 [build-system]
 requires = ["setuptools>=68"]
