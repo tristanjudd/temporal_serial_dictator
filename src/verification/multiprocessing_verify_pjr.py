@@ -68,9 +68,11 @@ def _check_groups_chunk(groups: list[tuple[Any, ...]]) -> list[dict[str, Any]]:
             violations.append(
                 {
                     "voters": list(group),
+                    "group_size": len(group),
                     "agreement": agreement,
                     "bound": bound,
                     "satisfaction": satisfaction,
+                    "gap": bound - satisfaction,
                 }
             )
     return violations
@@ -189,17 +191,16 @@ def verify_run(run_dir: Path, max_workers: int | None = None) -> dict[str, Any] 
         print(f"Error writing violations to '{violations_path}': {e}", file=sys.stderr)
         return None
 
-    worst = max(violations, key=lambda v: v["bound"] - v["satisfaction"], default=None)
+    worst = max(violations, key=lambda v: v["gap"], default=None)
     metadata_str = _format_metadata(metadata)
 
     if worst is None:
         console.print(f"{run_dir.name}: [bold green]PJR satisfied[/bold green]{metadata_str}")
     else:
-        gap = worst["bound"] - worst["satisfaction"]
         console.print(
             f"{run_dir.name}: [bold red]PJR violated[/bold red] "
             f"({len(violations)} violation(s), worst: group {worst['voters']} "
-            f"bound={worst['bound']} satisfaction={worst['satisfaction']} gap={gap})"
+            f"bound={worst['bound']} satisfaction={worst['satisfaction']} gap={worst['gap']})"
             f"{metadata_str}"
         )
 
@@ -210,11 +211,14 @@ def verify_experiment(experiment_dir: Path, max_workers: int | None = None) -> N
     """Verify PJR for every run_* subdirectory of experiment_dir, using a
     process pool for each run's verification.
 
-    Saves a violations.jsonl into each run subdirectory, and a summary
-    log (whether PJR is satisfied, how many violations, the worst one,
-    and -- for runs with metadata.json -- a breakdown of violations by
-    configuration, for configurations with at least one violation) into
-    experiment_dir itself. The same summary is printed to stdout.
+    Saves a violations.jsonl into each run subdirectory; a pjr_results.jsonl
+    into experiment_dir with one compact row per run (its metadata plus
+    num_violations, satisfied, worst_gap, worst_group_size), for
+    notebook-style analysis; and a summary log (whether PJR is satisfied,
+    how many violations, the worst one, and -- for runs with
+    metadata.json -- a breakdown of violations by configuration, for
+    configurations with at least one violation) into experiment_dir
+    itself. The same summary is printed to stdout.
     """
     if not experiment_dir.is_dir():
         print(f"Error: '{experiment_dir}' is not a directory.", file=sys.stderr)
@@ -234,6 +238,8 @@ def verify_experiment(experiment_dir: Path, max_workers: int | None = None) -> N
     # keyed by a canonical (sorted-key) json rendering of a run's metadata,
     # so runs sharing the same configuration accumulate into the same entry.
     config_stats: dict[str, dict[str, Any]] = {}
+    # one compact row per run, for notebook-style analysis (pjr_results.jsonl).
+    pjr_results: list[dict[str, Any]] = []
 
     for run_dir in run_dirs:
         summary = verify_run(run_dir, max_workers)
@@ -246,8 +252,20 @@ def verify_experiment(experiment_dir: Path, max_workers: int | None = None) -> N
 
         worst = summary["worst"]
         metadata = summary["metadata"]
+
+        pjr_results.append(
+            {
+                "run": run_dir.name,
+                **(metadata or {}),
+                "num_violations": summary["num_violations"],
+                "satisfied": summary["num_violations"] == 0,
+                "worst_gap": worst["gap"] if worst is not None else None,
+                "worst_group_size": worst["group_size"] if worst is not None else None,
+            }
+        )
+
         if worst is not None:
-            gap = worst["bound"] - worst["satisfaction"]
+            gap = worst["gap"]
             if worst_overall is None or gap > worst_overall[1]:
                 worst_overall = (run_dir.name, gap, worst, metadata)
 
@@ -262,6 +280,14 @@ def verify_experiment(experiment_dir: Path, max_workers: int | None = None) -> N
                     stats["worst_gap"] = gap
                     stats["worst"] = worst
                     stats["worst_run"] = run_dir.name
+
+    results_path = experiment_dir / "pjr_results.jsonl"
+    try:
+        with results_path.open("w") as f:
+            for result in pjr_results:
+                f.write(json.dumps(result) + "\n")
+    except OSError as e:
+        print(f"Error writing PJR results to '{results_path}': {e}", file=sys.stderr)
 
     satisfied = num_runs_violating == 0
     summary_lines = [
