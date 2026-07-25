@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import itertools
 import json
+import random
 import sys
 from dataclasses import dataclass
 from datetime import datetime
@@ -24,9 +25,14 @@ from pathlib import Path
 
 from rich.console import Console
 
-from .run_synthetic_experiment import EXPERIMENTS_DIR, run_synthetic_experiment
+from .run_synthetic_experiment import EXPERIMENTS_DIR, SEED_SPACE, run_synthetic_experiment
 
 console = Console()
+
+# Matches Lackner's own random.seed(31415) in experiments_aaai.py -- the
+# default here makes the whole grid reproducible out of the box, not just
+# when a seed happens to be explicitly requested.
+DEFAULT_SEED = 31415
 
 N_VALUES = [5, 10, 20]
 T_DIVISORS = [1, 2, 4, 8]
@@ -69,17 +75,26 @@ def build_grid() -> list[Config]:
     return configs
 
 
-def run_aaai_experiment(num_experiments: int = 10) -> Path | None:
+def run_aaai_experiment(num_experiments: int = 10, seed: int = DEFAULT_SEED) -> Path | None:
     """Run the full (n, m, T, threshold) grid, num_experiments runs per
     configuration, all as flat run_* subdirectories under a single parent
     directory under experiments/.
 
+    seed makes the entire grid reproducible: a single random.Random(seed)
+    derives one sub-seed per configuration (in grid order), which is
+    passed to that configuration's run_synthetic_experiment call. The
+    same seed always reproduces the exact same grid, including every
+    run's instance and every SerialDictator's sequence of choices.
+
     Saves experiment_manifest.jsonl (one line per run, giving its
-    configuration) and experiment_summary.log (a human-readable
+    configuration and seed) and experiment_summary.log (a human-readable
     per-configuration summary) into the parent directory. Returns the
     parent directory, or None if no runs succeeded.
     """
     configs = build_grid()
+    seed_rng = random.Random(seed)
+    config_seeds = [seed_rng.randrange(SEED_SPACE) for _ in range(len(configs))]
+
     timestamp = datetime.now().strftime("%Y%m%dT%H%M%S%f")
     parent_dir = EXPERIMENTS_DIR / f"aaai-grid-{timestamp}"
 
@@ -92,6 +107,7 @@ def run_aaai_experiment(num_experiments: int = 10) -> Path | None:
     manifest_entries = []
     summary_lines = [
         f"AAAI grid experiment: {parent_dir}",
+        f"Seed: {seed}",
         f"Configurations: {len(configs)}",
         f"Runs per configuration: {num_experiments}",
         f"Total runs: {total_runs}",
@@ -100,6 +116,7 @@ def run_aaai_experiment(num_experiments: int = 10) -> Path | None:
 
     run_offset = 0
     for config_id, config in enumerate(configs):
+        config_seed = config_seeds[config_id]
         console.print(
             f"[bold]Configuration {config_id + 1}/{len(configs)}[/bold]: "
             f"n={config.n} m={config.m} T={config.T} threshold={config.approval_threshold}"
@@ -115,12 +132,13 @@ def run_aaai_experiment(num_experiments: int = 10) -> Path | None:
             num_experiments=num_experiments,
             experiment_dir=parent_dir,
             run_offset=run_offset,
+            seed=config_seed,
         )
 
         num_succeeded = sum(run_dir is not None for run_dir in run_dirs)
         summary_lines.append(
             f"config {config_id}: n={config.n} m={config.m} T={config.T} "
-            f"threshold={config.approval_threshold} -> "
+            f"threshold={config.approval_threshold} seed={config_seed} -> "
             f"run_{run_offset}..run_{run_offset + num_experiments - 1} "
             f"({num_succeeded}/{num_experiments} succeeded)"
         )
@@ -139,6 +157,7 @@ def run_aaai_experiment(num_experiments: int = 10) -> Path | None:
                     "voter_point_mode": VOTER_POINT_MODE,
                     "cand_point_mode": CAND_POINT_MODE,
                     "approval_threshold": config.approval_threshold,
+                    "seed": config_seed,
                 }
             )
 
@@ -178,9 +197,15 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--num-experiments", type=int, default=10, help="number of runs per configuration"
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=DEFAULT_SEED,
+        help=f"seed for reproducibility (default: {DEFAULT_SEED})",
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = _parse_args()
-    run_aaai_experiment(num_experiments=args.num_experiments)
+    run_aaai_experiment(num_experiments=args.num_experiments, seed=args.seed)

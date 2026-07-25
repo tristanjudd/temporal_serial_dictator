@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 import sys
 import time
 from datetime import datetime
@@ -23,6 +24,10 @@ from .instances import generate_instance
 
 EXPERIMENTS_DIR = Path(__file__).resolve().parent.parent.parent / "experiments"
 
+# Upper bound (exclusive) for derived sub-seeds -- comfortably large
+# enough to make collisions between derived seeds a non-concern.
+SEED_SPACE = 2**32
+
 
 def run_synthetic_experiment(
     T: int,
@@ -35,6 +40,7 @@ def run_synthetic_experiment(
     num_experiments: int = 1,
     experiment_dir: Path | None = None,
     run_offset: int = 0,
+    seed: int | None = None,
 ) -> list[Path | None]:
     """Run num_experiments independent synthetic serial dictator
     experiments, each with a freshly generated instance of T rounds.
@@ -47,6 +53,14 @@ def run_synthetic_experiment(
     holding that run's approval profile, decision sequence, and metadata
     (the generation parameters, as metadata.json).
 
+    seed makes the whole batch reproducible: a single random.Random(seed)
+    is used once to derive both the SerialDictator's seed (so its
+    sequence of winner choices across the batch is fixed) and one
+    instance-generation seed per run (so each run's synthetic instance is
+    fixed too). The same seed with the same other parameters always
+    reproduces the exact same batch. If seed is None, every call is
+    freshly randomized, as before.
+
     Displays a progress bar for the experiments as they run, and prints a
     summary with the total elapsed time once all of them are done.
 
@@ -57,10 +71,23 @@ def run_synthetic_experiment(
         timestamp = datetime.now().strftime("%Y%m%dT%H%M%S%f")
         experiment_dir = EXPERIMENTS_DIR / f"T{T}-n{n}-{timestamp}"
 
+    # Always resolve to a concrete seed, even if none was given, so the
+    # seed actually used is always recorded in metadata.json -- every
+    # batch is reproducible after the fact, whether or not a seed was
+    # requested up front.
+    if seed is None:
+        seed = random.SystemRandom().randrange(SEED_SPACE)
+
+    seed_rng = random.Random(seed)
+    dictator_seed = seed_rng.randrange(SEED_SPACE)
+    instance_seeds = [seed_rng.randrange(SEED_SPACE) for _ in range(num_experiments)]
+
     # One SerialDictator, reused (and reset) across every run in the batch,
     # so all runs share the same voter ordering and only the synthetic data
     # varies from run to run.
-    serial_dictator: SerialDictator[int, int] = SerialDictator(voters=list(range(n)))
+    serial_dictator: SerialDictator[int, int] = SerialDictator(
+        voters=list(range(n)), seed=dictator_seed
+    )
 
     start_time = time.perf_counter()
 
@@ -75,6 +102,8 @@ def run_synthetic_experiment(
                 voter_point_mode=voter_point_mode,
                 cand_point_mode=cand_point_mode,
                 approval_threshold=approval_threshold,
+                seed=seed,
+                instance_seed=instance_seeds[i],
                 serial_dictator=serial_dictator,
                 run_dir=experiment_dir / f"run_{run_offset + i}",
                 announce=False,
@@ -85,7 +114,8 @@ def run_synthetic_experiment(
     num_succeeded = sum(result is not None for result in results)
     print(
         f"Completed {num_experiments} experiment(s) in {elapsed:.2f}s: "
-        f"{num_succeeded} succeeded, {num_experiments - num_succeeded} failed."
+        f"{num_succeeded} succeeded, {num_experiments - num_succeeded} failed "
+        f"(seed={seed})."
     )
     return results
 
@@ -98,13 +128,22 @@ def _run_single_experiment(
     voter_point_mode: str,
     cand_point_mode: str,
     approval_threshold: float,
+    seed: int,
+    instance_seed: int,
     serial_dictator: SerialDictator[int, int],
     run_dir: Path,
     announce: bool = True,
 ) -> Path | None:
-    """Generate a synthetic instance of T rounds, run serial_dictator on
-    it, and save the approval profile, decision sequence, and generation
-    parameters (as metadata.json) to run_dir. Returns run_dir.
+    """Generate a synthetic instance of T rounds (using instance_seed),
+    run serial_dictator on it, and save the approval profile, decision
+    sequence, and generation parameters (as metadata.json, including the
+    batch's seed) to run_dir. Returns run_dir.
+
+    seed is the batch-level seed shared by every run in this batch (so
+    runs from the same configuration still group together by metadata,
+    e.g. for the PJR violations-by-configuration breakdown); instance_seed
+    is this specific run's derived seed, used only to generate its
+    instance.
 
     serial_dictator is reset (but not re-permuted) before running, so
     repeated calls sharing the same SerialDictator instance all start
@@ -123,6 +162,7 @@ def _run_single_experiment(
             voter_point_mode=voter_point_mode,
             cand_point_mode=cand_point_mode,
             approval_threshold=approval_threshold,
+            seed=instance_seed,
         )
     except ValueError as e:
         print(f"Error generating synthetic instance: {e}", file=sys.stderr)
@@ -157,6 +197,7 @@ def _run_single_experiment(
                     "voter_point_mode": voter_point_mode,
                     "cand_point_mode": cand_point_mode,
                     "approval_threshold": approval_threshold,
+                    "seed": seed,
                 }
             )
         )
@@ -185,6 +226,12 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--num-experiments", type=int, default=1, help="number of experiments to run"
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="seed for reproducibility (default: freshly randomized each run)",
+    )
     return parser.parse_args()
 
 
@@ -199,4 +246,5 @@ if __name__ == "__main__":
         cand_point_mode=args.cand_point_mode,
         approval_threshold=args.approval_threshold,
         num_experiments=args.num_experiments,
+        seed=args.seed,
     )
