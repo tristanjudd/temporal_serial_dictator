@@ -26,6 +26,7 @@ from rich.progress import track
 
 from ..encoding.decoding import load_decisions_json, load_profile_jsonl
 from ..synthetic_data_tools.profiles import ApprovalProfile
+from .collate_violations import collate_violations
 
 console = Console()
 
@@ -213,12 +214,14 @@ def verify_experiment(experiment_dir: Path, max_workers: int | None = None) -> N
 
     Saves a violations.jsonl into each run subdirectory; a pjr_results.jsonl
     into experiment_dir with one compact row per run (its metadata plus
-    num_violations, satisfied, worst_gap, worst_group_size), for
-    notebook-style analysis; and a summary log (whether PJR is satisfied,
-    how many violations, the worst one, and -- for runs with
-    metadata.json -- a breakdown of violations by configuration, for
-    configurations with at least one violation) into experiment_dir
-    itself. The same summary is printed to stdout.
+    num_violations, satisfied, worst_gap, worst_group_size); an
+    all_violations.jsonl with one row per violating group across every run
+    (via collate_violations); and a summary log (whether PJR is satisfied,
+    how many violations, the worst one, and -- for runs with metadata.json
+    -- a breakdown of violations by configuration, for configurations with
+    at least one violation) into experiment_dir itself. The run-level and
+    violation-level jsonl files are both ready for notebook-style analysis
+    with no separate step. The same summary is printed to stdout.
     """
     if not experiment_dir.is_dir():
         print(f"Error: '{experiment_dir}' is not a directory.", file=sys.stderr)
@@ -288,6 +291,12 @@ def verify_experiment(experiment_dir: Path, max_workers: int | None = None) -> N
                 f.write(json.dumps(result) + "\n")
     except OSError as e:
         print(f"Error writing PJR results to '{results_path}': {e}", file=sys.stderr)
+
+    # Collates every run's violations.jsonl (just written above) into
+    # all_violations.jsonl, so a single verify_experiment call always
+    # leaves both the run-level and violation-level tables ready to load,
+    # with no separate step to remember.
+    collate_violations(experiment_dir)
 
     satisfied = num_runs_violating == 0
     summary_lines = [
