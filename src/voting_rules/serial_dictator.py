@@ -15,7 +15,9 @@ class SerialDictator(Generic[Voter, Alternative]):
     Fixes a permutation of the n voters. Each call advances through T rounds
     of an instance; in round t, the voter at position t (mod n) of the
     permutation is the dictator, and the winner is chosen uniformly at random
-    from that voter's approved alternatives.
+    from that voter's approved alternatives -- or, if the dictator's
+    approval set is empty (indifferent that round), uniformly at random
+    from all of that round's alternatives instead.
 
     By default the permutation is just the given voter order (the identity
     permutation) -- deterministic, and isomorphic to any other fixed
@@ -69,5 +71,7 @@ class SerialDictator(Generic[Voter, Alternative]):
         for profile in instance:
             dictator = self.permutation[self.round % len(self.permutation)]
             self.round += 1
-            winners.append(self._random_state.choice(list(profile.approval_sets[dictator])))
+            approved = profile.approval_sets[dictator]
+            choices = list(approved) if approved else list(profile.cands)
+            winners.append(self._random_state.choice(choices))
         return winners

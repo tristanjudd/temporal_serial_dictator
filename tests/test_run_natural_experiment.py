@@ -36,7 +36,7 @@ def _build_dummy_jsonl(tmp_path: Path, name: str = "dataset.jsonl") -> Path:
     return jsonl_path
 
 
-def test_load_jsonl_dataset_backfills_missing_voter_with_all_candidates(tmp_path: Path) -> None:
+def test_load_jsonl_dataset_backfills_missing_voter_as_indifferent(tmp_path: Path) -> None:
     jsonl_path = _build_dummy_jsonl(tmp_path)
 
     loaded = load_jsonl_dataset(jsonl_path)
@@ -58,9 +58,9 @@ def test_load_jsonl_dataset_backfills_missing_voter_with_all_candidates(tmp_path
     assert round_1.approval_sets["bob"] == [102, 103]
 
     # alice actually voted in round 2; bob didn't, so bob should be
-    # backfilled as indifferent, i.e. approving all of round 2's candidates.
+    # backfilled as indifferent, i.e. an empty approval set.
     assert round_2.approval_sets["alice"] == [104, 101]
-    assert round_2.approval_sets["bob"] == round_2.cands
+    assert round_2.approval_sets["bob"] == []
 
 
 def test_serial_dictator_runs_on_loaded_natural_data(tmp_path: Path) -> None:

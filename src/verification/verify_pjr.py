@@ -34,6 +34,27 @@ def find_pjr_violations(
     satisfied (approve the round's winner) in at least
     floor(agreement * |group| / n) rounds.
 
+    A voter with an empty approval set in a round is indifferent that
+    round -- equivalent to approving every candidate (rather than none),
+    which is how missing real-data voters are treated (see
+    tsoi_to_json._fill_missing_voters). This is handled without
+    materializing "approves everything" and checking it directly:
+
+    - Agreement is an intersection (AND-like) across the group: an
+      indifferent voter contributes the full candidate set, and
+      intersecting with the full set is always a no-op, so indifferent
+      voters are simply excluded from the intersection -- except when
+      *every* voter in the group is indifferent that round, in which
+      case the (empty) intersection is trivially the full candidate set,
+      so the round counts as agreement.
+    - Satisfaction is a disjunction (OR-like) across the group: an
+      indifferent voter always "approves" the round's winner (their
+      backfilled set is everything), so satisfaction is trivial whenever
+      *any* voter in the group is indifferent that round -- not only
+      when the whole group is. Only when no voter in the group is
+      indifferent does satisfaction require an actual genuine voter to
+      approve the winner.
+
     Returns the list of violating groups, each as
     {"voters", "group_size", "agreement", "bound", "satisfaction", "gap"}.
     """
@@ -54,10 +75,20 @@ def find_pjr_violations(
         agreement = 0
         satisfaction = 0
         for profile, winner in zip(instance, decisions, strict=True):
-            approval_sets = [set(profile.approval_sets[voter]) for voter in group]
-            if set.intersection(*approval_sets):
+            genuine_voters = [voter for voter in group if profile.approval_sets[voter]]
+            has_indifferent_voter = len(genuine_voters) < len(group)
+
+            if not genuine_voters:
+                agreed = True
+            else:
+                approval_sets = [set(profile.approval_sets[voter]) for voter in genuine_voters]
+                agreed = bool(set.intersection(*approval_sets))
+            if agreed:
                 agreement += 1
-            if any(winner in profile.approval_sets[voter] for voter in group):
+
+            if has_indifferent_voter or any(
+                winner in profile.approval_sets[voter] for voter in genuine_voters
+            ):
                 satisfaction += 1
 
         bound = (agreement * len(group)) // n

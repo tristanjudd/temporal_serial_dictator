@@ -71,8 +71,13 @@ def _fill_missing_voters(rounds: list[dict]) -> list[dict]:
     Not every voter necessarily appears in every round (e.g. a country
     that didn't participate that year). Uses the union of voters seen
     across all rounds; a voter absent from a round is treated as
-    indifferent between that round's candidates, i.e. as approving all
-    of them, rather than none.
+    indifferent between that round's candidates -- represented as an
+    empty approval set, rather than approving all of them. SerialDictator
+    and PJR verification both handle empty approval sets specially (an
+    indifferent voter picks/accepts uniformly at random rather than being
+    checked against a concrete approval set), so this is logically
+    equivalent to "approves everything" without the cost of actually
+    materializing every candidate as approved for that voter.
     """
     # all_voters: list = []
     # seen_voters: set = set()
@@ -94,8 +99,7 @@ def _fill_missing_voters(rounds: list[dict]) -> list[dict]:
             "voters": all_voters,
             "cands": round_data["cands"],
             "approval_sets": {
-                voter: round_data["approval_sets"].get(voter, round_data["cands"])
-                for voter in all_voters
+                voter: round_data["approval_sets"].get(voter, []) for voter in all_voters
             },
         }
         for round_data in rounds

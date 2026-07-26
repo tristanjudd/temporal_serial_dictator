@@ -50,6 +50,17 @@ def _check_groups_chunk(groups: list[tuple[Any, ...]]) -> list[dict[str, Any]]:
     """Check a chunk of voter groups for PJR violations. Runs inside a
     worker process, using the instance/decisions/n stashed by
     _init_worker.
+
+    A voter with an empty approval set in a round is indifferent that
+    round (see verify_pjr.find_pjr_violations for the full rationale).
+    Agreement (an intersection/AND across the group) excludes indifferent
+    voters -- a no-op, since they'd otherwise contribute the full
+    candidate set -- except when *every* voter in the group is
+    indifferent, in which case the round trivially counts as agreement.
+    Satisfaction (a disjunction/OR across the group) is trivially true
+    whenever *any* voter in the group is indifferent that round (their
+    backfilled set would include the winner), not only when the whole
+    group is.
     """
     assert _worker_instance is not None and _worker_decisions is not None
 
@@ -58,10 +69,20 @@ def _check_groups_chunk(groups: list[tuple[Any, ...]]) -> list[dict[str, Any]]:
         agreement = 0
         satisfaction = 0
         for profile, winner in zip(_worker_instance, _worker_decisions, strict=True):
-            approval_sets = [set(profile.approval_sets[voter]) for voter in group]
-            if set.intersection(*approval_sets):
+            genuine_voters = [voter for voter in group if profile.approval_sets[voter]]
+            has_indifferent_voter = len(genuine_voters) < len(group)
+
+            if not genuine_voters:
+                agreed = True
+            else:
+                approval_sets = [set(profile.approval_sets[voter]) for voter in genuine_voters]
+                agreed = bool(set.intersection(*approval_sets))
+            if agreed:
                 agreement += 1
-            if any(winner in profile.approval_sets[voter] for voter in group):
+
+            if has_indifferent_voter or any(
+                winner in profile.approval_sets[voter] for voter in genuine_voters
+            ):
                 satisfaction += 1
 
         bound = (agreement * len(group)) // _worker_n
