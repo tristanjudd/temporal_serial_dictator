@@ -61,9 +61,20 @@ def _build_configs(original_n: int, original_T: int) -> list[tuple[int, int]]:
     original_T rounds: every N_VALUES entry the dataset has enough
     voters for, paired with every T value aaai_experiment.build_grid
     would use for that n, that the dataset has enough rounds for.
+
+    A dataset with fewer voters than the largest N_VALUES tier (e.g. 11,
+    against N_VALUES=[5, 10, 20]) would otherwise never be run at its own
+    full voter count -- n=10 still leaves a voter unused, and n=20 isn't
+    feasible at all. So if original_n falls below the top tier and isn't
+    already one of N_VALUES, it's added as an extra n, with its own T
+    values derived the same way as any other n.
     """
+    grid_n_values = list(N_VALUES)
+    if original_n < max(N_VALUES) and original_n not in grid_n_values:
+        grid_n_values.append(original_n)
+
     configs = []
-    for n in N_VALUES:
+    for n in sorted(grid_n_values):
         if n > original_n:
             continue
         t_values: list[int] = []
