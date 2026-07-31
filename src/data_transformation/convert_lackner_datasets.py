@@ -24,6 +24,12 @@ DATASET_DIRS = [
     "i_phone/games/paid_games_tsoi",
     "i_phone/news/free_news_tsoi",
     "i_phone/news/gross_news_tsoi",
+    # paid_news_tsoi's raw .tsoi files have corrupted fields (e.g. a
+    # voter-count field containing "us:1" instead of an integer), so every
+    # file in this directory fails to parse. tsoi_dir_to_json reports each
+    # failure and produces no output for it; kept in this list (rather than
+    # removed) so that's an explicit, visible fact about the source data
+    # rather than a silent omission.
     "i_phone/news/paid_news_tsoi",
     "spotify/daily_tsoi",
     "spotify/viral_daily_tsoi",

@@ -131,3 +131,11 @@ tasks:
     desc: Delete all converted JSONL datasets under real_data/json_datasets
     cmds:
       - rm -rf real_data/json_datasets
+
+  download-and-convert-data:
+    desc: "Download the real-world .tsoi datasets and convert them to JSONL (skipped if already populated)"
+    deps: [install]
+    status:
+      - 'test -d real_data/json_datasets && [ "$(ls -A real_data/json_datasets)" ]'
+    cmds:
+      - "{{.VENV}}/bin/python -m src.data_transformation.download_and_convert_data"
